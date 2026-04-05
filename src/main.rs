@@ -1,11 +1,11 @@
 extern crate clap;
-extern crate somag;
+extern crate soma;
 
 use clap::{Arg, Command};
 use std::fs;
 
-use somag::gameboy;
-use somag::z80;
+use soma::gameboy;
+use soma::z80;
 
 fn main() {
     let matches = Command::new("soma_g")

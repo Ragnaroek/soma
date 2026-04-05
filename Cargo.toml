@@ -1,11 +1,11 @@
 [package]
-name = "somag"
+name = "soma"
 version = "0.0.1"
 edition = "2024"
 authors = ["Michael Bohn <spaceodyssey@gmx.de>"]
 
 [[bin]]
-name = "somag"
+name = "soma"
 
 [dependencies]
 clap = "4.5.31"

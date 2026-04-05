@@ -1,6 +1,6 @@
-extern crate somag;
+extern crate soma;
 
-use somag::z80;
+use soma::z80;
 
 #[test]
 fn test_nop() {
