@@ -1,2 +1,2 @@
-# soma-g
+# soma
 Gameboy Emulator

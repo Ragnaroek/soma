@@ -1,5 +1,0 @@
-run:
-    cargo run -- testdata/hello_world.gb
-
-test:
-    cargo test

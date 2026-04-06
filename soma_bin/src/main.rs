@@ -1,11 +1,10 @@
 use clap::{Arg, Command};
 use std::fs;
 
-use libsoma::gameboy;
-use libsoma::sm83;
+use libsoma::{ROM, dmg::DMG};
 
 fn main() {
-    let matches = Command::new("soma_g")
+    let matches = Command::new("soma")
         .version("0.0.1")
         .about("gameboy emulator")
         .arg(
@@ -17,9 +16,10 @@ fn main() {
         .get_matches();
 
     let rom_file = matches.get_one::<String>("ROMFILE").unwrap();
-    let rom = fs::read(rom_file).unwrap();
+    let rom_data = fs::read(rom_file).unwrap();
 
-    let state = gameboy::gameboy_init(rom);
-    let term = sm83::start(state);
-    println!("terminated: {:?}", term);
+    let rom = ROM::new(&rom_data);
+    let dmg = DMG::init(rom);
+    dmg.run();
+    println!("run terminated");
 }
