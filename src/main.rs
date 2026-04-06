@@ -5,7 +5,7 @@ use clap::{Arg, Command};
 use std::fs;
 
 use soma::gameboy;
-use soma::z80;
+use soma::sm83;
 
 fn main() {
     let matches = Command::new("soma_g")
@@ -23,6 +23,6 @@ fn main() {
     let rom = fs::read(rom_file).unwrap();
 
     let state = gameboy::gameboy_init(rom);
-    let term = z80::start(state);
+    let term = sm83::start(state);
     println!("terminated: {:?}", term);
 }

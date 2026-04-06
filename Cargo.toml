@@ -8,4 +8,6 @@ authors = ["Michael Bohn <spaceodyssey@gmx.de>"]
 name = "soma"
 
 [dependencies]
-clap = "4.5.31"
+clap = "4.6.0"
+
+psy = { path = "../psy/" }
