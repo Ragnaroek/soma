@@ -1,11 +1,8 @@
-extern crate clap;
-extern crate soma;
-
 use clap::{Arg, Command};
 use std::fs;
 
-use soma::gameboy;
-use soma::sm83;
+use libsoma::gameboy;
+use libsoma::sm83;
 
 fn main() {
     let matches = Command::new("soma_g")

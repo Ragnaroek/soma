@@ -1,6 +1,6 @@
-extern crate soma;
+extern crate libsoma;
 
-use soma::sm83;
+use libsoma::sm83;
 
 #[test]
 fn test_nop() {

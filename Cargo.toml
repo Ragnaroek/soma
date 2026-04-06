@@ -1,13 +1,6 @@
-[package]
-name = "soma"
-version = "0.0.1"
-edition = "2024"
-authors = ["Michael Bohn <spaceodyssey@gmx.de>"]
-
-[[bin]]
-name = "soma"
-
-[dependencies]
-clap = "4.6.0"
-
-psy = { path = "../psy/" }
+[workspace]
+resolver = "2"
+members = [
+    "soma_lib",
+    "soma_bin",
+]

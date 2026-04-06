@@ -1,0 +1,12 @@
+[package]
+name = "libsoma"
+version = "0.0.1"
+edition = "2024"
+authors = ["Michael Bohn <spaceodyssey@gmx.de>"]
+
+[lib]
+name = "libsoma"
+path = "src/lib.rs"
+
+[dependencies]
+psy = { path = "../../psy/" }
