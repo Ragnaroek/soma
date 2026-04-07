@@ -1,7 +1,11 @@
 use clap::{Arg, Command};
+use psy::arch::sm83::Sm83Instr;
 use std::fs;
 
-use libsoma::{ROM, dmg::DMG};
+use libsoma::{
+    ROM,
+    dmg::{DMG, Debugger},
+};
 
 fn main() {
     let matches = Command::new("soma")
@@ -20,6 +24,11 @@ fn main() {
 
     let rom = ROM::new(&rom_data);
     let mut dmg = DMG::init(rom);
+    dmg.attach_debugger(Debugger::new(cli_debug));
     dmg.run();
     println!("run terminated");
+}
+
+fn cli_debug(instr: &Sm83Instr, _dmg: &DMG) {
+    println!("executed: {:?}", instr.mnemonic);
 }

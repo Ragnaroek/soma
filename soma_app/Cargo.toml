@@ -10,3 +10,5 @@ name = "soma"
 [dependencies]
 libsoma = { path = "../soma_lib" }
 clap = "4.6.0"
+
+psy = { path = "../../psy/" }

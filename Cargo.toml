@@ -2,5 +2,5 @@
 resolver = "2"
 members = [
     "soma_lib",
-    "soma_bin",
+    "soma_app",
 ]
