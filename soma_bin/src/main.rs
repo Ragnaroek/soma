@@ -19,7 +19,7 @@ fn main() {
     let rom_data = fs::read(rom_file).unwrap();
 
     let rom = ROM::new(&rom_data);
-    let dmg = DMG::init(rom);
+    let mut dmg = DMG::init(rom);
     dmg.run();
     println!("run terminated");
 }
