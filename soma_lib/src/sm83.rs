@@ -58,17 +58,20 @@ impl SM83 {
         }
     }
 
-    pub fn execute(&mut self, rom: &ROM) {
+    pub fn execute(&mut self, rom: &ROM) -> Result<(), &'static str> {
         let instr = sm83::decode(rom.value_at(self.pc() as usize));
 
         if instr.op_code == sm83::INSTR_JP.op_code {
             let addr = rom.read_u16((self.pc() + 1) as usize);
             self.set_pc(addr);
+        } else {
+            return Err("invalid instruction");
         }
 
         if let Some(debugger) = &self.debugger {
             (debugger.debug)(instr, self);
         }
+        Ok(())
     }
 
     pub fn halted(&self) -> bool {

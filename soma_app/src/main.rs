@@ -26,8 +26,12 @@ fn main() {
     let rom = ROM::new(&rom_data);
     let mut dmg = DMG::init(rom);
     dmg.attach_debugger(Debugger::new(cli_debug));
-    dmg.run();
-    println!("run terminated");
+    let r = dmg.run();
+    if r.is_ok() {
+        println!("HALT");
+    } else {
+        println!("ERR: {}", r.unwrap_err());
+    }
 }
 
 fn cli_debug(instr: &Sm83Instr, _sm83: &mut SM83) {

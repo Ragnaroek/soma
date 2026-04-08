@@ -17,10 +17,11 @@ impl<'a> DMG<'a> {
     /// Run the ROM. This function does not terminate until
     /// the run is cancelled or execution ends with a HALT or
     /// execution error.
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), &'static str> {
         while !self.sm83.halted() {
-            self.sm83.execute(&self.rom);
+            self.sm83.execute(&self.rom)?;
         }
+        Ok(())
     }
 
     pub fn attach_debugger(&mut self, debugger: Debugger) {
