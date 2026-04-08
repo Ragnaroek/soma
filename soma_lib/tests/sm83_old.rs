@@ -9,16 +9,6 @@ fn test_nop() {
 }
 
 #[test]
-fn test_jp() {
-    let mem = [0x3C, 0xAA, 0xFF].to_vec();
-    let mut s = exec_mem(mem.clone(), sm83_old::jp);
-    assert_eq!(s.reg.pc, 0xFFAA);
-
-    s.reg.pc = 0x0;
-    assert_eq!(s, state_mem(mem.clone()));
-}
-
-#[test]
 fn test_inc_a() {
     let mut s = exec(sm83_old::inc_a);
     assert_eq!(s.reg.a, 1);

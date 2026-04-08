@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "./sm83_test.rs"]
+mod sm83_test;
+
 use psy::arch::sm83::{self, Sm83Instr};
 
 use crate::ROM;
