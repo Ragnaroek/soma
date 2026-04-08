@@ -15,4 +15,8 @@ impl<'a> ROM<'a> {
     pub fn value_at(&self, ix: usize) -> u8 {
         self.data[ix]
     }
+
+    pub fn read_u16(&self, ix: usize) -> u16 {
+        u16::from_le_bytes([self.data[ix], self.data[ix + 1]])
+    }
 }

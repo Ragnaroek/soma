@@ -4,7 +4,8 @@ use std::fs;
 
 use libsoma::{
     ROM,
-    dmg::{DMG, Debugger},
+    dmg::DMG,
+    sm83::{Debugger, SM83},
 };
 
 fn main() {
@@ -29,6 +30,6 @@ fn main() {
     println!("run terminated");
 }
 
-fn cli_debug(instr: &Sm83Instr, _dmg: &DMG) {
+fn cli_debug(instr: &Sm83Instr, _sm83: &mut SM83) {
     println!("executed: {:?}", instr.mnemonic);
 }
