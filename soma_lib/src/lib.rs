@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod dmg;
+pub mod io;
 pub mod sm83;
 
 pub struct ROM<'a> {

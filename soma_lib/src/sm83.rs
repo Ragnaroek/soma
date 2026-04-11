@@ -5,6 +5,7 @@ mod sm83_test;
 use psy::arch::sm83::{self, Sm83Instr};
 
 use crate::ROM;
+use crate::io::IO;
 
 /// SM83 CPU emulator
 
@@ -12,6 +13,7 @@ pub struct SM83 {
     debugger: Option<Debugger>,
     halted: bool,
     reg: Register,
+    io: IO,
 }
 
 pub struct Register {
@@ -64,12 +66,17 @@ impl Debugger {
     }
 }
 
+// mem space definition (inclusive intervals)
+const IO_START: u16 = 0xFF00;
+const IO_END: u16 = 0xFFFF;
+
 impl SM83 {
     pub fn init() -> SM83 {
         SM83 {
             debugger: None,
             halted: false,
             reg: Register::zero(),
+            io: IO::init(),
         }
     }
 
@@ -87,6 +94,11 @@ impl SM83 {
             let addr = rom.read_u16((self.pc() + 1) as usize);
             self.mem_write(addr, self.reg.a);
             self.inc_pc(3);
+        } else if instr.op_code == sm83::INSTR_LD_TO_A_FROM_DEREF_LABEL.op_code {
+            let addr = rom.read_u16((self.pc() + 1) as usize);
+            let v = self.mem_read(addr);
+            self.reg.a = v;
+            self.inc_pc(3);
         } else {
             return Err("invalid instruction");
         }
@@ -98,8 +110,18 @@ impl SM83 {
     }
 
     fn mem_write(&mut self, addr: u16, v: u8) {
-        if addr >= 0xFF00 && addr <= 0xFF7F {
-            // TODO update IO on IO Port write
+        if addr >= IO_START && addr <= IO_END {
+            self.io.write(addr, v);
+        } else {
+            panic!("mem write error");
+        }
+    }
+
+    fn mem_read(&mut self, addr: u16) -> u8 {
+        if addr >= IO_START && addr <= IO_END {
+            self.io.read(addr)
+        } else {
+            panic!("mem read error");
         }
     }
 
