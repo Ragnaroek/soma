@@ -9,7 +9,7 @@ fn test_err() -> Result<(), &'static str> {
     )];
 
     for (mem, err) in cases {
-        let r = exec_mem(&mem);
+        let r = exec(Register::zero(), &mem);
         assert!(r.is_err(), "expected error '{}', but got Ok", err);
         match r {
             Ok(_) => assert!(false, "error expected"),
@@ -28,7 +28,7 @@ fn test_jp() -> Result<(), &'static str> {
     )];
 
     for (exp, mem, pc) in cases {
-        let sm83 = exec_mem(&mem)?;
+        let sm83 = exec(Register::zero(), &mem)?;
         assert_eq!(
             sm83.pc(),
             pc,
@@ -43,16 +43,29 @@ fn test_jp() -> Result<(), &'static str> {
 
 #[test]
 fn test_ld() -> Result<(), &'static str> {
-    let cases = [(
-        "(ld %a 1)",
-        [psy::arch::sm83::INSTR_LD_TO_A_FROM_IMMEDIATE.op_code, 1],
-        Register::a(1),
-    )];
+    let cases: [(&str, Register, &[u8], Register); 2] = [
+        (
+            "(ld %a 1)",
+            Register::zero(),
+            &[psy::arch::sm83::INSTR_LD_TO_A_FROM_IMMEDIATE.op_code, 1],
+            Register::a(1),
+        ),
+        (
+            "(ld ('label) %a)",
+            Register::a(0xAB),
+            &[
+                psy::arch::sm83::INSTR_LD_TO_DEREF_LABEL_FROM_A.op_code,
+                0x26, // IO-Port Address
+                0xFF,
+            ],
+            Register::a(0xAB), // reg a stays unchanged
+        ),
+    ];
 
-    for (exp, mem, reg) in cases {
-        let sm83 = exec_mem(&mem)?;
-        assert_eq!(sm83.pc(), 2);
-        assert_equal_v_regs(&sm83.reg, &reg, exp);
+    for (exp, reg_start, mem, reg_after) in cases {
+        let sm83 = exec(reg_start, &mem)?;
+        assert_eq!(sm83.pc(), mem.len() as u16);
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
     }
     Ok(())
 }
@@ -71,8 +84,9 @@ fn assert_equal_v_regs(l: &Register, r: &Register, exp: &str) {
     assert_eq!(l.l, r.l, "reg l: {}", exp);
 }
 
-fn exec_mem(mem: &[u8]) -> Result<SM83, &'static str> {
+fn exec(reg: Register, mem: &[u8]) -> Result<SM83, &'static str> {
     let mut sm83 = SM83::init();
+    sm83.reg = reg;
     sm83.execute(&ROM::new(mem))?;
     Ok(sm83)
 }

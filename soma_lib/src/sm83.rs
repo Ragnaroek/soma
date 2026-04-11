@@ -82,7 +82,11 @@ impl SM83 {
         } else if instr.op_code == sm83::INSTR_LD_TO_A_FROM_IMMEDIATE.op_code {
             let val = rom.read_u8((self.pc() + 1) as usize);
             self.reg.a = val;
-            self.set_pc(self.pc() + 2);
+            self.inc_pc(2);
+        } else if instr.op_code == sm83::INSTR_LD_TO_DEREF_LABEL_FROM_A.op_code {
+            let addr = rom.read_u16((self.pc() + 1) as usize);
+            self.mem_write(addr, self.reg.a);
+            self.inc_pc(3);
         } else {
             return Err("invalid instruction");
         }
@@ -93,12 +97,22 @@ impl SM83 {
         Ok(())
     }
 
+    fn mem_write(&mut self, addr: u16, v: u8) {
+        if addr >= 0xFF00 && addr <= 0xFF7F {
+            // TODO update IO on IO Port write
+        }
+    }
+
     pub fn halted(&self) -> bool {
         self.halted
     }
 
     pub fn set_pc(&mut self, pc: u16) {
         self.reg.pc = pc;
+    }
+
+    pub fn inc_pc(&mut self, inc: u16) {
+        self.reg.pc += inc;
     }
 
     pub fn pc(&self) -> u16 {
