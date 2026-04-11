@@ -28,6 +28,32 @@ pub struct Register {
     pub f: u8,
 }
 
+impl Register {
+    /// Returns a register bank with all registers set to 0.
+    pub fn zero() -> Register {
+        Register {
+            pc: 0,
+            sp: 0,
+            a: 0,
+            b: 0,
+            c: 0,
+            d: 0,
+            e: 0,
+            h: 0,
+            l: 0,
+            f: 0,
+        }
+    }
+
+    /// Returns a register bank with register a set to the supplied value.
+    /// All other registers are set to 0.
+    pub fn a(v: u8) -> Register {
+        let mut reg = Register::zero();
+        reg.a = v;
+        reg
+    }
+}
+
 pub struct Debugger {
     debug: fn(&Sm83Instr, &mut SM83),
 }
@@ -43,27 +69,20 @@ impl SM83 {
         SM83 {
             debugger: None,
             halted: false,
-            reg: Register {
-                pc: 0,
-                sp: 0,
-                a: 0,
-                b: 0,
-                c: 0,
-                d: 0,
-                e: 0,
-                h: 0,
-                l: 0,
-                f: 0,
-            },
+            reg: Register::zero(),
         }
     }
 
     pub fn execute(&mut self, rom: &ROM) -> Result<(), &'static str> {
-        let instr = sm83::decode(rom.value_at(self.pc() as usize));
+        let instr = sm83::decode(rom.read_u8(self.pc() as usize));
 
         if instr.op_code == sm83::INSTR_JP.op_code {
             let addr = rom.read_u16((self.pc() + 1) as usize);
             self.set_pc(addr);
+        } else if instr.op_code == sm83::INSTR_LD_TO_A_FROM_IMMEDIATE.op_code {
+            let val = rom.read_u8((self.pc() + 1) as usize);
+            self.reg.a = val;
+            self.set_pc(self.pc() + 2);
         } else {
             return Err("invalid instruction");
         }

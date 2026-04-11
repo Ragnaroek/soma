@@ -12,7 +12,7 @@ impl<'a> ROM<'a> {
         ROM { data }
     }
 
-    pub fn value_at(&self, ix: usize) -> u8 {
+    pub fn read_u8(&self, ix: usize) -> u8 {
         self.data[ix]
     }
 
