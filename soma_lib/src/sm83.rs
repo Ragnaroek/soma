@@ -7,6 +7,11 @@ use psy::arch::sm83::{self, Sm83Instr};
 use crate::ROM;
 use crate::io::IO;
 
+const Z: u8 = 1 << 7;
+const N: u8 = 1 << 6;
+const H: u8 = 1 << 5;
+const C: u8 = 1 << 4;
+
 /// SM83 CPU emulator
 
 pub struct SM83 {
@@ -27,7 +32,7 @@ pub struct Register {
     pub e: u8,
     pub h: u8,
     pub l: u8,
-    pub f: u8,
+    pub f: u8, // z n h c flags in lower half
 }
 
 impl Register {
@@ -46,13 +51,54 @@ impl Register {
             f: 0,
         }
     }
+}
+
+/// Mostly useful in tests
+pub struct RegBuilder {
+    reg: Register,
+}
+
+impl RegBuilder {
+    pub fn new() -> RegBuilder {
+        RegBuilder {
+            reg: Register::zero(),
+        }
+    }
+
+    pub fn reg(self) -> Register {
+        self.reg
+    }
 
     /// Returns a register bank with register a set to the supplied value.
     /// All other registers are set to 0.
-    pub fn a(v: u8) -> Register {
-        let mut reg = Register::zero();
-        reg.a = v;
-        reg
+    pub fn a(mut self, v: u8) -> RegBuilder {
+        self.reg.a = v;
+        self
+    }
+
+    pub fn f(mut self, v: u8) -> RegBuilder {
+        self.reg.f = v;
+        self
+    }
+
+    pub fn f_z(mut self, v: u8) -> RegBuilder {
+        self.reg.f = set_flag(self.reg.f, Z, v);
+        self
+    }
+
+    pub fn f_n(mut self, v: u8) -> RegBuilder {
+        self.reg.f = set_flag(self.reg.f, N, v);
+        self
+    }
+
+    pub fn f_h(mut self, v: u8) -> RegBuilder {
+        self.reg.f = set_flag(self.reg.f, H, v);
+        self
+    }
+
+    pub fn f_c(mut self, v: u8) -> RegBuilder {
+        self.reg.f = set_flag(self.reg.f, C, v);
+        self
     }
 }
 
@@ -99,6 +145,16 @@ impl SM83 {
             let v = self.mem_read(addr);
             self.reg.a = v;
             self.inc_pc(3);
+        } else if instr.op_code == sm83::INSTR_CP_IMMEDIATE.op_code {
+            let v = rom.read_u8((self.pc() + 1) as usize);
+            let (z, carry) = self.reg.a.overflowing_sub(v);
+            let mut f = set_flag(self.reg.f, Z, z);
+            f = set_flag(f, N, 1);
+            f = set_flag(f, H, z & H);
+            f = set_flag(f, C, carry as u8);
+            // TODO carry and half-carry
+            self.reg.f = f;
+            self.inc_pc(2);
         } else {
             return Err("invalid instruction");
         }
@@ -144,4 +200,10 @@ impl SM83 {
     pub fn attach_debugger(&mut self, debugger: Debugger) {
         self.debugger = Some(debugger)
     }
+}
+
+// Helper
+
+fn set_flag(reg: u8, flag: u8, v: u8) -> u8 {
+    if v == 0 { reg & !flag } else { reg | flag }
 }

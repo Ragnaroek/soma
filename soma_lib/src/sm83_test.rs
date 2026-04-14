@@ -1,6 +1,6 @@
 use crate::ROM;
 use crate::io::IO;
-use crate::sm83::{Register, SM83};
+use crate::sm83::{RegBuilder, Register, SM83};
 
 #[test]
 fn test_err() -> Result<(), &'static str> {
@@ -50,18 +50,18 @@ fn test_ld() -> Result<(), &'static str> {
             IO::init(),
             Register::zero(),
             &[psy::arch::sm83::INSTR_LD_TO_A_FROM_IMMEDIATE.op_code, 1],
-            Register::a(1),
+            RegBuilder::new().a(1).reg(),
         ),
         (
             "(ld ('label) %a)",
             IO::init(),
-            Register::a(0xAB),
+            RegBuilder::new().a(0xAB).reg(),
             &[
                 psy::arch::sm83::INSTR_LD_TO_DEREF_LABEL_FROM_A.op_code,
                 0x26, // IO-Port Address
                 0xFF,
             ],
-            Register::a(0xAB), // reg a stays unchanged
+            RegBuilder::new().a(0xAB).reg(), // reg a stays unchanged
         ),
         (
             "(ld %a ('label))",
@@ -72,12 +72,37 @@ fn test_ld() -> Result<(), &'static str> {
                 0x44,
                 0xFF,
             ],
-            Register::a(23),
+            RegBuilder::new().a(23).reg(),
         ),
     ];
 
     for (exp, io, reg_start, mem, reg_after) in cases {
         let sm83 = exec(io, reg_start, &mem)?;
+        assert_eq!(sm83.pc(), mem.len() as u16);
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
+#[test]
+fn test_cp() -> Result<(), &'static str> {
+    let cases: [(&str, Register, &[u8], Register); 2] = [
+        (
+            "(cp 0x90) with a = 1 (not equal)",
+            RegBuilder::new().a(1).reg(),
+            &[psy::arch::sm83::INSTR_CP_IMMEDIATE.op_code, 0x90],
+            RegBuilder::new().a(1).f_z(1).f_n(1).f_h(1).f_c(1).reg(),
+        ),
+        (
+            "(cp 0x90) with a = 0x90 (equal)",
+            RegBuilder::new().a(0x90).reg(),
+            &[psy::arch::sm83::INSTR_CP_IMMEDIATE.op_code, 0x90],
+            RegBuilder::new().a(0x90).f_z(0).f_n(1).f_h(0).f_c(0).reg(),
+        ),
+    ];
+
+    for (exp, reg_start, mem, reg_after) in cases {
+        let sm83 = exec(IO::init(), reg_start, &mem)?;
         assert_eq!(sm83.pc(), mem.len() as u16);
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
     }
