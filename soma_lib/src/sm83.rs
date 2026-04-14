@@ -100,6 +100,11 @@ impl RegBuilder {
         self.reg.f = set_flag(self.reg.f, C, v);
         self
     }
+
+    pub fn pc(mut self, v: u16) -> RegBuilder {
+        self.reg.pc = v;
+        self
+    }
 }
 
 pub struct Debugger {
@@ -132,6 +137,12 @@ impl SM83 {
         if instr.op_code == sm83::INSTR_JP.op_code {
             let addr = rom.read_u16((self.pc() + 1) as usize);
             self.set_pc(addr);
+        } else if instr.op_code == sm83::INSTR_JR_IF_C.op_code {
+            let rel = rom.read_u8((self.pc() + 1) as usize) as i8;
+            self.inc_pc(2); // relative jump is computed after the instruction
+            if (self.reg.f & C) != 0 {
+                self.set_pc(self.pc().saturating_add_signed(rel as i16));
+            }
         } else if instr.op_code == sm83::INSTR_LD_TO_A_FROM_IMMEDIATE.op_code {
             let val = rom.read_u8((self.pc() + 1) as usize);
             self.reg.a = val;
@@ -152,7 +163,6 @@ impl SM83 {
             f = set_flag(f, N, 1);
             f = set_flag(f, H, z & H);
             f = set_flag(f, C, carry as u8);
-            // TODO carry and half-carry
             self.reg.f = f;
             self.inc_pc(2);
         } else {

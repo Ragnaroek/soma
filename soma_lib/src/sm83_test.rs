@@ -43,6 +43,57 @@ fn test_jp() -> Result<(), &'static str> {
 }
 
 #[test]
+fn test_jr() -> Result<(), &'static str> {
+    let cases = [
+        (
+            "(jr #c 0xF9)",
+            RegBuilder::new().pc(7).f_c(1).reg(),
+            [
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                psy::arch::sm83::INSTR_JR_IF_C.op_code,
+                0xF9,
+            ],
+            2,
+        ),
+        (
+            "(jr #c 0xF9)",
+            RegBuilder::new().pc(7).f_c(0).reg(),
+            [
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                psy::arch::sm83::INSTR_JR_IF_C.op_code,
+                0xF9,
+            ],
+            9,
+        ),
+    ];
+
+    for (exp, reg_init, mem, pc) in cases {
+        let sm83 = exec(IO::init(), reg_init, &mem)?;
+        assert_eq!(
+            sm83.pc(),
+            pc,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            pc,
+            sm83.pc()
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn test_ld() -> Result<(), &'static str> {
     let cases: [(&str, IO, Register, &[u8], Register); 3] = [
         (
