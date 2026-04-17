@@ -175,7 +175,7 @@ impl SM83 {
         Ok(())
     }
 
-    fn mem_write(&mut self, addr: u16, v: u8) {
+    pub fn mem_write(&mut self, addr: u16, v: u8) {
         if addr >= IO_START && addr <= IO_END {
             self.io.write(addr, v);
         } else {
