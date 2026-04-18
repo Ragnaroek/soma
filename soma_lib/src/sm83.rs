@@ -76,6 +76,16 @@ impl RegBuilder {
         self
     }
 
+    pub fn d(mut self, v: u8) -> RegBuilder {
+        self.reg.d = v;
+        self
+    }
+
+    pub fn e(mut self, v: u8) -> RegBuilder {
+        self.reg.e = v;
+        self
+    }
+
     pub fn f(mut self, v: u8) -> RegBuilder {
         self.reg.f = v;
         self
@@ -165,6 +175,12 @@ impl SM83 {
             f = set_flag(f, C, carry as u8);
             self.reg.f = f;
             self.inc_pc(2);
+        } else if instr.op_code == sm83::INSTR_LD_TO_DE_FROM_IMMEDIATE.op_code {
+            let lsb = rom.read_u8((self.pc() + 1) as usize);
+            let msb = rom.read_u8((self.pc() + 2) as usize);
+            self.reg.d = msb;
+            self.reg.e = lsb;
+            self.inc_pc(3);
         } else {
             return Err("invalid instruction");
         }

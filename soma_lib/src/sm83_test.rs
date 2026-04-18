@@ -95,7 +95,7 @@ fn test_jr() -> Result<(), &'static str> {
 
 #[test]
 fn test_ld() -> Result<(), &'static str> {
-    let cases: [(&str, IO, Register, &[u8], Register); 3] = [
+    let cases: [(&str, IO, Register, &[u8], Register); 4] = [
         (
             "(ld %a 1)",
             IO::init(),
@@ -124,6 +124,17 @@ fn test_ld() -> Result<(), &'static str> {
                 0xFF,
             ],
             RegBuilder::new().a(23).reg(),
+        ),
+        (
+            "(ld %bc 0x8F01)",
+            IO::init(),
+            Register::zero(),
+            &[
+                psy::arch::sm83::INSTR_LD_TO_DE_FROM_IMMEDIATE.op_code,
+                0x8F,
+                0x01,
+            ],
+            RegBuilder::new().d(0x01).e(0x8F).reg(),
         ),
     ];
 
