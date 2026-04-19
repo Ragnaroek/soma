@@ -76,6 +76,16 @@ impl RegBuilder {
         self
     }
 
+    pub fn b(mut self, v: u8) -> RegBuilder {
+        self.reg.b = v;
+        self
+    }
+
+    pub fn c(mut self, v: u8) -> RegBuilder {
+        self.reg.c = v;
+        self
+    }
+
     pub fn d(mut self, v: u8) -> RegBuilder {
         self.reg.d = v;
         self
@@ -108,6 +118,16 @@ impl RegBuilder {
 
     pub fn f_c(mut self, v: u8) -> RegBuilder {
         self.reg.f = set_flag(self.reg.f, C, v);
+        self
+    }
+
+    pub fn h(mut self, v: u8) -> RegBuilder {
+        self.reg.h = v;
+        self
+    }
+
+    pub fn l(mut self, v: u8) -> RegBuilder {
+        self.reg.l = v;
         self
     }
 
@@ -180,6 +200,18 @@ impl SM83 {
             let msb = rom.read_u8((self.pc() + 2) as usize);
             self.reg.d = msb;
             self.reg.e = lsb;
+            self.inc_pc(3);
+        } else if instr.op_code == sm83::INSTR_LD_TO_HL_FROM_IMMEDIATE.op_code {
+            let lsb = rom.read_u8((self.pc() + 1) as usize);
+            let msb = rom.read_u8((self.pc() + 2) as usize);
+            self.reg.h = msb;
+            self.reg.l = lsb;
+            self.inc_pc(3);
+        } else if instr.op_code == sm83::INSTR_LD_TO_BC_FROM_IMMEDIATE.op_code {
+            let lsb = rom.read_u8((self.pc() + 1) as usize);
+            let msb = rom.read_u8((self.pc() + 2) as usize);
+            self.reg.b = msb;
+            self.reg.c = lsb;
             self.inc_pc(3);
         } else {
             return Err("invalid instruction");
