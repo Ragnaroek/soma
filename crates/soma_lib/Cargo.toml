@@ -9,4 +9,4 @@ name = "libsoma"
 path = "src/lib.rs"
 
 [dependencies]
-psy = { path = "../../psy/" }
+psy = { path = "../../../psy/" }

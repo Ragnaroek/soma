@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "soma_lib",
-    "soma_app",
+    "crates/soma_lib",
+    "crates/soma_app",
 ]
