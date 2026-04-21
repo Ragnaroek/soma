@@ -148,6 +148,7 @@ impl Debugger {
 }
 
 // mem space definition (inclusive intervals)
+const ROM_0_END: u16 = 0x3FFF;
 const IO_START: u16 = 0xFF00;
 const IO_END: u16 = 0xFFFF;
 
@@ -180,8 +181,11 @@ impl SM83 {
         }
     }
 
-    fn mem_read(&mut self, addr: u16) -> u8 {
-        if addr >= IO_START && addr <= IO_END {
+    /// read a value from the whole address space
+    fn mem_read(&mut self, addr: u16, rom: &ROM) -> u8 {
+        if addr <= ROM_0_END {
+            rom.read_u8(addr as usize)
+        } else if addr >= IO_START && addr <= IO_END {
             self.io.read(addr)
         } else {
             panic!("mem read error");
@@ -249,6 +253,14 @@ fn exec_ld_to_a_from_immediate(sm83: &mut SM83, rom: &ROM) -> Result<(), &'stati
     Ok(())
 }
 
+fn exec_ld_to_a_from_deref_de(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
+    let addr = ((sm83.reg.d as u16) << 8) | (sm83.reg.e as u16);
+    let v = sm83.mem_read(addr, rom);
+    sm83.reg.a = v;
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_ld_to_de_from_immediate(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
     let lsb = rom.read_u8((sm83.pc() + 1) as usize);
     let msb = rom.read_u8((sm83.pc() + 2) as usize);
@@ -285,7 +297,7 @@ fn exec_ld_to_deref_label_from_a(sm83: &mut SM83, rom: &ROM) -> Result<(), &'sta
 
 fn exec_ld_to_a_from_deref_label(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
     let addr = rom.read_u16((sm83.pc() + 1) as usize);
-    let v = sm83.mem_read(addr);
+    let v = sm83.mem_read(addr, rom);
     sm83.reg.a = v;
     sm83.inc_pc(3);
     Ok(())
@@ -318,7 +330,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x17*/ exec_invalid,
     /*0x18*/ exec_invalid,
     /*0x19*/ exec_invalid,
-    /*0x1A*/ exec_invalid,
+    /*0x1A*/ exec_ld_to_a_from_deref_de,
     /*0x1B*/ exec_invalid,
     /*0x1C*/ exec_invalid,
     /*0x1D*/ exec_invalid,
