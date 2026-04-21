@@ -8,6 +8,8 @@ pub struct ROM<'a> {
     data: &'a [u8],
 }
 
+/// A ROM can contain more than u16::MAX data (the maximum address space
+/// of the SM83). This is why the indexes on read are usize on the ROM.
 impl<'a> ROM<'a> {
     pub fn new(data: &'a [u8]) -> ROM<'a> {
         ROM { data }

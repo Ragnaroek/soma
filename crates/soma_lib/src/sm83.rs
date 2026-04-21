@@ -51,6 +51,19 @@ impl Register {
             f: 0,
         }
     }
+
+    pub fn de(&self) -> u16 {
+        ((self.d as u16) << 8) | (self.e as u16)
+    }
+
+    pub fn hl(&self) -> u16 {
+        ((self.h as u16) << 8) | (self.l as u16)
+    }
+
+    pub fn set_hl(&mut self, v: u16) {
+        self.h = (v >> 8) as u8;
+        self.l = v as u8;
+    }
 }
 
 /// Mostly useful in tests
@@ -254,7 +267,7 @@ fn exec_ld_to_a_from_immediate(sm83: &mut SM83, rom: &ROM) -> Result<(), &'stati
 }
 
 fn exec_ld_to_a_from_deref_de(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
-    let addr = ((sm83.reg.d as u16) << 8) | (sm83.reg.e as u16);
+    let addr = sm83.reg.de();
     let v = sm83.mem_read(addr, rom);
     sm83.reg.a = v;
     sm83.inc_pc(1);
@@ -303,6 +316,15 @@ fn exec_ld_to_a_from_deref_label(sm83: &mut SM83, rom: &ROM) -> Result<(), &'sta
     Ok(())
 }
 
+fn exec_ld_to_a_from_deref_hl_inc(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
+    let addr = sm83.reg.hl();
+    let v = sm83.mem_read(addr, rom);
+    sm83.reg.a = v;
+    sm83.reg.set_hl(addr + 1);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x00*/ exec_invalid,
     /*0x01*/ exec_ld_to_bc_from_immediate,
@@ -346,7 +368,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x27*/ exec_invalid,
     /*0x28*/ exec_invalid,
     /*0x29*/ exec_invalid,
-    /*0x2A*/ exec_invalid,
+    /*0x2A*/ exec_ld_to_a_from_deref_hl_inc,
     /*0x2B*/ exec_invalid,
     /*0x2C*/ exec_invalid,
     /*0x2D*/ exec_invalid,
