@@ -148,6 +148,11 @@ impl RegBuilder {
         self.reg.pc = v;
         self
     }
+
+    pub fn hl(mut self, v: u16) -> RegBuilder {
+        self.reg.set_hl(v);
+        self
+    }
 }
 
 pub struct Debugger {
@@ -195,7 +200,7 @@ impl SM83 {
     }
 
     /// read a value from the whole address space
-    fn mem_read(&mut self, addr: u16, rom: &ROM) -> u8 {
+    fn mem_read(&self, addr: u16, rom: &ROM) -> u8 {
         if addr <= ROM_0_END {
             rom.read_u8(addr as usize)
         } else if addr >= IO_START && addr <= IO_END {
@@ -308,6 +313,14 @@ fn exec_ld_to_deref_label_from_a(sm83: &mut SM83, rom: &ROM) -> Result<(), &'sta
     Ok(())
 }
 
+fn exec_ld_to_deref_hl_inc_from_a(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
+    let addr = sm83.reg.hl();
+    sm83.mem_write(addr, sm83.reg.a);
+    sm83.reg.set_hl(addr + 1);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_ld_to_a_from_deref_label(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
     let addr = rom.read_u16((sm83.pc() + 1) as usize);
     let v = sm83.mem_read(addr, rom);
@@ -360,7 +373,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x1F*/ exec_invalid,
     /*0x20*/ exec_invalid,
     /*0x21*/ exec_ld_to_hl_from_immediate,
-    /*0x22*/ exec_invalid,
+    /*0x22*/ exec_ld_to_deref_hl_inc_from_a,
     /*0x23*/ exec_invalid,
     /*0x24*/ exec_invalid,
     /*0x25*/ exec_invalid,
