@@ -2,6 +2,7 @@
 
 pub mod dmg;
 pub mod io;
+pub mod memory;
 pub mod sm83;
 
 pub struct ROM<'a> {

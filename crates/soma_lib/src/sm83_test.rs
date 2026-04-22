@@ -1,5 +1,6 @@
 use crate::ROM;
 use crate::io::IO;
+use crate::memory::MemoryController;
 use crate::sm83::{RegBuilder, Register, SM83};
 
 #[test]
@@ -11,7 +12,7 @@ fn test_err() -> Result<(), &'static str> {
 
     for (mem, err) in cases {
         let rom = ROM::new(&mem);
-        let r = exec(IO::init(), Register::zero(), &rom);
+        let r = exec(IO::init(), Register::zero(), rom);
         assert!(r.is_err(), "expected error '{}', but got Ok", err);
         match r {
             Ok(_) => assert!(false, "error expected"),
@@ -31,7 +32,7 @@ fn test_jp() -> Result<(), &'static str> {
 
     for (exp, mem, pc) in cases {
         let rom = ROM::new(&mem);
-        let sm83 = exec(IO::init(), Register::zero(), &rom)?;
+        let (sm83, _) = exec(IO::init(), Register::zero(), rom)?;
         assert_eq!(
             sm83.pc(),
             pc,
@@ -83,7 +84,7 @@ fn test_jr() -> Result<(), &'static str> {
 
     for (exp, reg_init, mem, pc) in cases {
         let rom = ROM::new(&mem);
-        let sm83 = exec(IO::init(), reg_init, &rom)?;
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
             pc,
@@ -217,7 +218,7 @@ fn test_ld() -> Result<(), &'static str> {
 
     for (exp, io, reg_start, mem, pc_at, reg_after, mem_checks) in cases {
         let rom = ROM::new(mem);
-        let sm83 = exec(io, reg_start, &rom)?;
+        let (sm83, mc) = exec(io, reg_start, rom)?;
         assert_eq!(
             sm83.pc(),
             pc_at,
@@ -229,7 +230,7 @@ fn test_ld() -> Result<(), &'static str> {
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
 
         for check in mem_checks {
-            assert_eq!(sm83.mem_read(check.0, &rom), check.1);
+            assert_eq!(mc.read(check.0), check.1);
         }
     }
     Ok(())
@@ -254,7 +255,7 @@ fn test_cp() -> Result<(), &'static str> {
 
     for (exp, reg_start, mem, reg_after) in cases {
         let rom = ROM::new(mem);
-        let sm83 = exec(IO::init(), reg_start, &rom)?;
+        let (sm83, _) = exec(IO::init(), reg_start, rom)?;
         assert_eq!(sm83.pc(), mem.len() as u16);
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
     }
@@ -275,10 +276,13 @@ fn assert_equal_v_regs(l: &Register, r: &Register, exp: &str) {
     assert_eq!(l.l, r.l, "reg l: {}", exp);
 }
 
-fn exec(io: IO, reg: Register, rom: &ROM) -> Result<SM83, &'static str> {
+fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), &'static str> {
+    let mut mc = MemoryController {
+        io: io,
+        rom: Some(rom),
+    };
     let mut sm83 = SM83::init();
-    sm83.io = io;
     sm83.reg = reg;
-    sm83.execute(&rom)?;
-    Ok(sm83)
+    sm83.execute(&mut mc)?;
+    Ok((sm83, mc))
 }

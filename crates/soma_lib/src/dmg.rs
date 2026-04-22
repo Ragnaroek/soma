@@ -1,9 +1,12 @@
 use crate::ROM;
+use crate::io::IO;
+use crate::memory::MemoryController;
 use crate::sm83::{Debugger, SM83};
 
-pub struct DMG<T> {
+pub struct DMG<'a, T> {
     time: Time<T>,
     sm83: SM83,
+    mc: MemoryController<'a>,
 }
 
 const CPU_FREQ: f64 = 4194304.0; // Hz
@@ -21,25 +24,30 @@ pub struct Time<T> {
     pub now: RelativeTime<T>,
 }
 
-impl<T> DMG<T> {
+impl<'a, T> DMG<'a, T> {
     /// Initialise a original gameboy system (DMG)
-    pub fn init(time: Time<T>) -> DMG<T> {
+    pub fn init(time: Time<T>) -> DMG<'a, T> {
         let mut sm83 = SM83::init();
         sm83.set_pc(0x100);
-        DMG { time, sm83 }
+        let mc = MemoryController {
+            io: IO::init(),
+            rom: None,
+        };
+        DMG { time, sm83, mc }
     }
 
     /// Run the ROM. This function does not terminate until
     /// the run is cancelled or execution ends with a HALT or
     /// execution error.
-    pub fn run(&mut self, rom: ROM) -> Result<(), &'static str> {
+    pub fn run(&mut self, rom: ROM<'a>) -> Result<(), &'static str> {
+        self.mc.rom = Some(rom);
         while !self.sm83.halted() {
-            self.sm83.execute(&rom)?;
+            self.sm83.execute(&mut self.mc)?;
 
             // update IO according to time progress
             let now = (self.time.now)(&self.time.ref_time);
             let at_scanline = (now % VBLANK_SCANLINE_MILLIS) as u8;
-            self.sm83.mem_write(0xFF44, at_scanline);
+            self.mc.write(0xFF44, at_scanline);
         }
         Ok(())
     }

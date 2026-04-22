@@ -4,8 +4,7 @@ mod sm83_test;
 
 use psy::arch::sm83::{self, Sm83Instr};
 
-use crate::ROM;
-use crate::io::IO;
+use crate::memory::MemoryController;
 
 const Z: u8 = 1 << 7;
 const N: u8 = 1 << 6;
@@ -18,7 +17,6 @@ pub struct SM83 {
     debugger: Option<Debugger>,
     halted: bool,
     reg: Register,
-    io: IO,
 }
 
 pub struct Register {
@@ -165,49 +163,24 @@ impl Debugger {
     }
 }
 
-// mem space definition (inclusive intervals)
-const ROM_0_END: u16 = 0x3FFF;
-const IO_START: u16 = 0xFF00;
-const IO_END: u16 = 0xFFFF;
-
 impl SM83 {
     pub fn init() -> SM83 {
         SM83 {
             debugger: None,
             halted: false,
             reg: Register::zero(),
-            io: IO::init(),
         }
     }
 
-    pub fn execute(&mut self, rom: &ROM) -> Result<(), &'static str> {
-        let instr = sm83::decode(rom.read_u8(self.pc() as usize));
+    pub fn execute(&mut self, mc: &mut MemoryController) -> Result<(), &'static str> {
+        let instr = sm83::decode(mc.read(self.pc()));
 
-        EXEC_TABLE[instr.op_code as usize](self, rom)?;
+        EXEC_TABLE[instr.op_code as usize](self, mc)?;
 
         if let Some(debugger) = &self.debugger {
             (debugger.debug)(instr, self);
         }
         Ok(())
-    }
-
-    pub fn mem_write(&mut self, addr: u16, v: u8) {
-        if addr >= IO_START && addr <= IO_END {
-            self.io.write(addr, v);
-        } else {
-            panic!("mem write error");
-        }
-    }
-
-    /// read a value from the whole address space
-    fn mem_read(&self, addr: u16, rom: &ROM) -> u8 {
-        if addr <= ROM_0_END {
-            rom.read_u8(addr as usize)
-        } else if addr >= IO_START && addr <= IO_END {
-            self.io.read(addr)
-        } else {
-            panic!("mem read error");
-        }
     }
 
     pub fn halted(&self) -> bool {
@@ -231,14 +204,14 @@ impl SM83 {
     }
 }
 
-type Sm83Exec = fn(&mut SM83, &ROM) -> Result<(), &'static str>;
+type Sm83Exec = fn(&mut SM83, &mut MemoryController) -> Result<(), &'static str>;
 
-fn exec_invalid(_: &mut SM83, _: &ROM) -> Result<(), &'static str> {
+fn exec_invalid(_: &mut SM83, _: &mut MemoryController) -> Result<(), &'static str> {
     return Err("invalid instruction");
 }
 
-fn exec_cp_immediate(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
-    let v = rom.read_u8((sm83.pc() + 1) as usize);
+fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+    let v = mc.read(sm83.pc() + 1);
     let (z, carry) = sm83.reg.a.overflowing_sub(v);
     let mut f = set_flag(sm83.reg.f, Z, z);
     f = set_flag(f, N, 1);
@@ -249,14 +222,14 @@ fn exec_cp_immediate(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
     Ok(())
 }
 
-fn exec_jp(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
-    let addr = rom.read_u16((sm83.pc() + 1) as usize);
+fn exec_jp(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+    let addr = mc.read_u16(sm83.pc() + 1);
     sm83.set_pc(addr);
     Ok(())
 }
 
-fn exec_jp_if_c(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
-    let rel = rom.read_u8((sm83.pc() + 1) as usize) as i8;
+fn exec_jp_if_c(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+    let rel = mc.read(sm83.pc() + 1) as i8;
     sm83.inc_pc(2); // relative jump is computed after the instruction
     if (sm83.reg.f & C) != 0 {
         sm83.set_pc(sm83.pc().saturating_add_signed(rel as i16));
@@ -264,74 +237,101 @@ fn exec_jp_if_c(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
     Ok(())
 }
 
-fn exec_ld_to_a_from_immediate(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
-    let val = rom.read_u8((sm83.pc() + 1) as usize);
+fn exec_ld_to_a_from_immediate(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+) -> Result<(), &'static str> {
+    let val = mc.read(sm83.pc() + 1);
     sm83.reg.a = val;
     sm83.inc_pc(2);
     Ok(())
 }
 
-fn exec_ld_to_a_from_deref_de(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
+fn exec_ld_to_a_from_deref_de(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+) -> Result<(), &'static str> {
     let addr = sm83.reg.de();
-    let v = sm83.mem_read(addr, rom);
+    let v = mc.read(addr);
     sm83.reg.a = v;
     sm83.inc_pc(1);
     Ok(())
 }
 
-fn exec_ld_to_de_from_immediate(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
-    let lsb = rom.read_u8((sm83.pc() + 1) as usize);
-    let msb = rom.read_u8((sm83.pc() + 2) as usize);
+fn exec_ld_to_de_from_immediate(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+) -> Result<(), &'static str> {
+    let lsb = mc.read(sm83.pc() + 1);
+    let msb = mc.read(sm83.pc() + 2);
     sm83.reg.d = msb;
     sm83.reg.e = lsb;
     sm83.inc_pc(3);
     Ok(())
 }
 
-fn exec_ld_to_hl_from_immediate(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
-    let lsb = rom.read_u8((sm83.pc() + 1) as usize);
-    let msb = rom.read_u8((sm83.pc() + 2) as usize);
+fn exec_ld_to_hl_from_immediate(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+) -> Result<(), &'static str> {
+    let lsb = mc.read(sm83.pc() + 1);
+    let msb = mc.read(sm83.pc() + 2);
     sm83.reg.h = msb;
     sm83.reg.l = lsb;
     sm83.inc_pc(3);
     Ok(())
 }
 
-fn exec_ld_to_bc_from_immediate(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
-    let lsb = rom.read_u8((sm83.pc() + 1) as usize);
-    let msb = rom.read_u8((sm83.pc() + 2) as usize);
+fn exec_ld_to_bc_from_immediate(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+) -> Result<(), &'static str> {
+    let lsb = mc.read(sm83.pc() + 1);
+    let msb = mc.read(sm83.pc() + 2);
     sm83.reg.b = msb;
     sm83.reg.c = lsb;
     sm83.inc_pc(3);
     Ok(())
 }
 
-fn exec_ld_to_deref_label_from_a(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
-    let addr = rom.read_u16((sm83.pc() + 1) as usize);
-    sm83.mem_write(addr, sm83.reg.a);
+fn exec_ld_to_deref_label_from_a(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+) -> Result<(), &'static str> {
+    let addr = mc.read_u16(sm83.pc() + 1);
+    mc.write(addr, sm83.reg.a);
     sm83.inc_pc(3);
     Ok(())
 }
 
-fn exec_ld_to_deref_hl_inc_from_a(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
+fn exec_ld_to_deref_hl_inc_from_a(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+) -> Result<(), &'static str> {
     let addr = sm83.reg.hl();
-    sm83.mem_write(addr, sm83.reg.a);
+    mc.write(addr, sm83.reg.a);
     sm83.reg.set_hl(addr + 1);
     sm83.inc_pc(1);
     Ok(())
 }
 
-fn exec_ld_to_a_from_deref_label(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
-    let addr = rom.read_u16((sm83.pc() + 1) as usize);
-    let v = sm83.mem_read(addr, rom);
+fn exec_ld_to_a_from_deref_label(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+) -> Result<(), &'static str> {
+    let addr = mc.read_u16(sm83.pc() + 1);
+    let v = mc.read(addr);
     sm83.reg.a = v;
     sm83.inc_pc(3);
     Ok(())
 }
 
-fn exec_ld_to_a_from_deref_hl_inc(sm83: &mut SM83, rom: &ROM) -> Result<(), &'static str> {
+fn exec_ld_to_a_from_deref_hl_inc(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+) -> Result<(), &'static str> {
     let addr = sm83.reg.hl();
-    let v = sm83.mem_read(addr, rom);
+    let v = mc.read(addr);
     sm83.reg.a = v;
     sm83.reg.set_hl(addr + 1);
     sm83.inc_pc(1);
