@@ -277,6 +277,45 @@ fn test_inc() -> Result<(), &'static str> {
             &[psy::arch::sm83::INSTR_INC_DE.op_code],
             RegBuilder::new().de(0x667).reg(),
         ),
+        (
+            "(inc %de) with overflow",
+            RegBuilder::new().de(0xFFFF).reg(),
+            &[psy::arch::sm83::INSTR_INC_DE.op_code],
+            RegBuilder::new().de(0x0).reg(),
+        ),
+    ];
+
+    for (exp, reg_init, mem, reg_after) in cases {
+        let rom = ROM::new(mem);
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            1,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            1,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
+#[test]
+fn test_dec() -> Result<(), &'static str> {
+    let cases = [
+        (
+            "(dec %bc) with 1 %bc",
+            RegBuilder::new().bc(0x01).reg(),
+            &[psy::arch::sm83::INSTR_DEC_BC.op_code],
+            RegBuilder::new().bc(0x00).reg(),
+        ),
+        (
+            "(dec %bc) with 0 %bc",
+            RegBuilder::new().bc(0x0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_BC.op_code],
+            RegBuilder::new().bc(0xFFFF).reg(),
+        ),
     ];
 
     for (exp, reg_init, mem, reg_after) in cases {
