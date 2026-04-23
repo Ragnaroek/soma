@@ -58,6 +58,11 @@ impl Register {
         ((self.h as u16) << 8) | (self.l as u16)
     }
 
+    pub fn set_de(&mut self, v: u16) {
+        self.d = (v >> 8) as u8;
+        self.e = v as u8;
+    }
+
     pub fn set_hl(&mut self, v: u16) {
         self.h = (v >> 8) as u8;
         self.l = v as u8;
@@ -144,6 +149,11 @@ impl RegBuilder {
 
     pub fn pc(mut self, v: u16) -> RegBuilder {
         self.reg.pc = v;
+        self
+    }
+
+    pub fn de(mut self, v: u16) -> RegBuilder {
+        self.reg.set_de(v);
         self
     }
 
@@ -338,6 +348,13 @@ fn exec_ld_to_a_from_deref_hl_inc(
     Ok(())
 }
 
+fn exec_inc_de(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'static str> {
+    let de = sm83.reg.de();
+    sm83.reg.set_de(de + 1);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x00*/ exec_invalid,
     /*0x01*/ exec_ld_to_bc_from_immediate,
@@ -358,7 +375,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x10*/ exec_invalid,
     /*0x11*/ exec_ld_to_de_from_immediate,
     /*0x12*/ exec_invalid,
-    /*0x13*/ exec_invalid,
+    /*0x13*/ exec_inc_de,
     /*0x14*/ exec_invalid,
     /*0x15*/ exec_invalid,
     /*0x16*/ exec_invalid,

@@ -262,6 +262,39 @@ fn test_cp() -> Result<(), &'static str> {
     Ok(())
 }
 
+#[test]
+fn test_inc() -> Result<(), &'static str> {
+    let cases = [
+        (
+            "(inc %de) with zero %de",
+            RegBuilder::new().de(0x00).reg(),
+            &[psy::arch::sm83::INSTR_INC_DE.op_code],
+            RegBuilder::new().de(0x01).reg(),
+        ),
+        (
+            "(inc %de) with non-zero %de",
+            RegBuilder::new().de(0x666).reg(),
+            &[psy::arch::sm83::INSTR_INC_DE.op_code],
+            RegBuilder::new().de(0x667).reg(),
+        ),
+    ];
+
+    for (exp, reg_init, mem, reg_after) in cases {
+        let rom = ROM::new(mem);
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            1,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            1,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
 // helper
 
 /// conly compares the value register a to l, without pc and sp.
