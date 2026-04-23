@@ -362,6 +362,12 @@ fn exec_ld_to_a_from_deref_hl_inc(
     Ok(())
 }
 
+fn exec_ld_to_a_from_b(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'static str> {
+    sm83.reg.a = sm83.reg.b;
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_inc_de(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'static str> {
     let de = sm83.reg.de();
     let (de_inc, _) = de.overflowing_add(1);
@@ -499,7 +505,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x75*/ exec_invalid,
     /*0x76*/ exec_invalid,
     /*0x77*/ exec_invalid,
-    /*0x78*/ exec_invalid,
+    /*0x78*/ exec_ld_to_a_from_b,
     /*0x79*/ exec_invalid,
     /*0x7A*/ exec_invalid,
     /*0x7B*/ exec_invalid,

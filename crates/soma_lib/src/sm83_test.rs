@@ -99,7 +99,7 @@ fn test_jr() -> Result<(), &'static str> {
 
 #[test]
 fn test_ld() -> Result<(), &'static str> {
-    let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 9] = [
+    let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 10] = [
         (
             "(ld %a 1)",
             IO::init(),
@@ -212,6 +212,15 @@ fn test_ld() -> Result<(), &'static str> {
             ],
             3,
             RegBuilder::new().b(0x04).c(0x60).reg(),
+            &[],
+        ),
+        (
+            "(ld %a %b)",
+            IO::init(),
+            RegBuilder::new().a(0x01).b(0x66).reg(),
+            &[psy::arch::sm83::INSTR_LD_TO_A_FROM_B.op_code],
+            1,
+            RegBuilder::new().a(0x66).b(0x66).reg(),
             &[],
         ),
     ];
