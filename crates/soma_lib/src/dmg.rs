@@ -29,8 +29,11 @@ impl<'a, T> DMG<'a, T> {
     pub fn init(time: Time<T>) -> DMG<'a, T> {
         let mut sm83 = SM83::init();
         sm83.set_pc(0x100);
+
+        // allocate the DMG memory
         let mc = MemoryController {
             io: IO::init(),
+            vram: [0; 8192],
             rom: None,
         };
         DMG { time, sm83, mc }

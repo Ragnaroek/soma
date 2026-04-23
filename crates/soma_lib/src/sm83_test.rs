@@ -280,6 +280,7 @@ fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), &'s
     let mut mc = MemoryController {
         io: io,
         rom: Some(rom),
+        vram: [0; 8192],
     };
     let mut sm83 = SM83::init();
     sm83.reg = reg;
