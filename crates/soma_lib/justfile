@@ -1,2 +1,6 @@
 test:
     cargo test
+
+coverage:
+    cargo tarpaulin --ignore-tests --out Lcov --output-dir ./crates/soma_lib
+    genhtml lcov.info --output-directory coverage_report
