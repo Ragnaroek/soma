@@ -343,6 +343,39 @@ fn test_dec() -> Result<(), &'static str> {
     Ok(())
 }
 
+#[test]
+fn test_or() -> Result<(), &'static str> {
+    let cases = [
+        (
+            "(or %a %c) non-zero result",
+            RegBuilder::new().a(0x01).c(0x10).f_z(1).reg(),
+            &[psy::arch::sm83::INSTR_OR_A_C.op_code],
+            RegBuilder::new().a(0x11).c(0x10).f_z(0).reg(),
+        ),
+        (
+            "(or %a %c) zero result",
+            RegBuilder::new().a(0x00).c(0x00).f_z(0).reg(),
+            &[psy::arch::sm83::INSTR_OR_A_C.op_code],
+            RegBuilder::new().a(0x00).c(0x00).f_z(1).reg(),
+        ),
+    ];
+
+    for (exp, reg_init, mem, reg_after) in cases {
+        let rom = ROM::new(mem);
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            1,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            1,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
 // helper
 
 /// conly compares the value register a to l, without pc and sp.

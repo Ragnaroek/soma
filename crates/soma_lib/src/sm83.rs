@@ -76,6 +76,14 @@ impl Register {
         self.h = (v >> 8) as u8;
         self.l = v as u8;
     }
+
+    fn set_flag(&mut self, flag: u8, v: u8) {
+        self.f = if v == 0 {
+            self.f & !flag
+        } else {
+            self.f | flag
+        };
+    }
 }
 
 /// Mostly useful in tests
@@ -127,22 +135,22 @@ impl RegBuilder {
     }
 
     pub fn f_z(mut self, v: u8) -> RegBuilder {
-        self.reg.f = set_flag(self.reg.f, Z, v);
+        self.reg.set_flag(Z, v);
         self
     }
 
     pub fn f_n(mut self, v: u8) -> RegBuilder {
-        self.reg.f = set_flag(self.reg.f, N, v);
+        self.reg.set_flag(N, v);
         self
     }
 
     pub fn f_h(mut self, v: u8) -> RegBuilder {
-        self.reg.f = set_flag(self.reg.f, H, v);
+        self.reg.set_flag(H, v);
         self
     }
 
     pub fn f_c(mut self, v: u8) -> RegBuilder {
-        self.reg.f = set_flag(self.reg.f, C, v);
+        self.reg.set_flag(C, v);
         self
     }
 
@@ -237,11 +245,10 @@ fn exec_invalid(_: &mut SM83, _: &mut MemoryController) -> Result<(), &'static s
 fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
     let v = mc.read(sm83.pc() + 1);
     let (z, carry) = sm83.reg.a.overflowing_sub(v);
-    let mut f = set_flag(sm83.reg.f, Z, z);
-    f = set_flag(f, N, 1);
-    f = set_flag(f, H, z & H);
-    f = set_flag(f, C, carry as u8);
-    sm83.reg.f = f;
+    sm83.reg.set_flag(Z, z);
+    sm83.reg.set_flag(N, 1);
+    sm83.reg.set_flag(H, z & H);
+    sm83.reg.set_flag(C, carry as u8);
     sm83.inc_pc(2);
     Ok(())
 }
@@ -380,6 +387,13 @@ fn exec_dec_bc(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'stat
     let bc = sm83.reg.bc();
     let (bc_dec, _) = bc.overflowing_sub(1);
     sm83.reg.set_bc(bc_dec);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
+fn exec_or_a_c(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'static str> {
+    sm83.reg.a = sm83.reg.a | sm83.reg.c;
+    sm83.reg.set_flag(Z, (sm83.reg.a == 0) as u8);
     sm83.inc_pc(1);
     Ok(())
 }
@@ -562,7 +576,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     exec_invalid,
     exec_invalid,
     exec_invalid,
-    /*0xB1*/ exec_invalid,
+    /*0xB1*/ exec_or_a_c,
     /*0xB2*/ exec_invalid,
     /*0xB3*/ exec_invalid,
     /*0xB4*/ exec_invalid,
@@ -644,7 +658,3 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
 ];
 
 // Helper
-
-fn set_flag(reg: u8, flag: u8, v: u8) -> u8 {
-    if v == 0 { reg & !flag } else { reg | flag }
-}
