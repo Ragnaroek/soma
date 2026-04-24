@@ -47,7 +47,35 @@ fn test_jp() -> Result<(), &'static str> {
 
 #[test]
 fn test_jr() -> Result<(), &'static str> {
-    let cases: [(&str, Register, &[u8], u16); 4] = [
+    let cases: [(&str, Register, &[u8], u16); 7] = [
+        (
+            "(jr 0xFE)", //self-jump
+            RegBuilder::new().pc(1).reg(),
+            &[0x0, psy::arch::sm83::INSTR_JR.op_code, 0xFE],
+            1,
+        ),
+        (
+            "(jr 0xF9)",
+            RegBuilder::new().pc(7).reg(),
+            &[
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                psy::arch::sm83::INSTR_JR.op_code,
+                0xF9,
+            ],
+            2,
+        ),
+        (
+            "(jr 0x02)",
+            RegBuilder::new().pc(0).reg(),
+            &[psy::arch::sm83::INSTR_JR.op_code, 0x02],
+            4,
+        ),
         (
             "(jr #c 0xF9)",
             RegBuilder::new().pc(7).f_c(1).reg(),

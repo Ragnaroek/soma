@@ -259,6 +259,13 @@ fn exec_jp(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static st
     Ok(())
 }
 
+fn exec_jr(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+    let rel = mc.read(sm83.pc() + 1) as i8;
+    sm83.inc_pc(2); // relative jump is computed after the instruction
+    sm83.set_pc(sm83.pc().saturating_add_signed(rel as i16));
+    Ok(())
+}
+
 fn exec_jr_if_c(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
     let rel = mc.read(sm83.pc() + 1) as i8;
     sm83.inc_pc(2); // relative jump is computed after the instruction
@@ -432,7 +439,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x15*/ exec_invalid,
     /*0x16*/ exec_invalid,
     /*0x17*/ exec_invalid,
-    /*0x18*/ exec_invalid,
+    /*0x18*/ exec_jr,
     /*0x19*/ exec_invalid,
     /*0x1A*/ exec_ld_to_a_from_deref_de,
     /*0x1B*/ exec_invalid,
