@@ -47,11 +47,11 @@ fn test_jp() -> Result<(), &'static str> {
 
 #[test]
 fn test_jr() -> Result<(), &'static str> {
-    let cases = [
+    let cases: [(&str, Register, &[u8], u16); 4] = [
         (
             "(jr #c 0xF9)",
             RegBuilder::new().pc(7).f_c(1).reg(),
-            [
+            &[
                 0x0,
                 0x0,
                 0x0,
@@ -67,7 +67,7 @@ fn test_jr() -> Result<(), &'static str> {
         (
             "(jr #c 0xF9)",
             RegBuilder::new().pc(7).f_c(0).reg(),
-            [
+            &[
                 0x0,
                 0x0,
                 0x0,
@@ -80,10 +80,44 @@ fn test_jr() -> Result<(), &'static str> {
             ],
             9,
         ),
+        (
+            "(jr #nz 0xF8) if #z not zero",
+            RegBuilder::new().pc(8).f_z(1).reg(),
+            &[
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                psy::arch::sm83::INSTR_JR_IF_NZ.op_code,
+                0xF8, // -7 jump
+            ],
+            2,
+        ),
+        (
+            "(jr #nz 0xF8) if #z is zero",
+            RegBuilder::new().pc(8).f_z(0).reg(),
+            &[
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                0x0,
+                psy::arch::sm83::INSTR_JR_IF_NZ.op_code,
+                0xF8, // -7 jump
+            ],
+            10,
+        ),
     ];
 
     for (exp, reg_init, mem, pc) in cases {
-        let rom = ROM::new(&mem);
+        let rom = ROM::new(mem);
         let (sm83, _) = exec(IO::init(), reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
