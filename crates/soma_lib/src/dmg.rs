@@ -3,6 +3,9 @@ use crate::io::IO;
 use crate::memory::MemoryController;
 use crate::sm83::{Debugger, SM83};
 
+pub const RESOLUTION_X: usize = 166;
+pub const RESOLUTION_Y: usize = 144;
+
 pub struct DMG<'a, T> {
     time: Time<T>,
     sm83: SM83,
