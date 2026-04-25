@@ -26,7 +26,7 @@ pub struct Time<T> {
 
 impl<'a, T> DMG<'a, T> {
     /// Initialise a original gameboy system (DMG)
-    pub fn init(time: Time<T>) -> DMG<'a, T> {
+    pub fn init(rom: ROM<'a>, time: Time<T>) -> DMG<'a, T> {
         let mut sm83 = SM83::init();
         sm83.set_pc(0x100);
 
@@ -34,25 +34,25 @@ impl<'a, T> DMG<'a, T> {
         let mc = MemoryController {
             io: IO::init(),
             vram: [0; 8192],
-            rom: None,
+            rom: Some(rom),
         };
         DMG { time, sm83, mc }
     }
 
-    /// Run the ROM. This function does not terminate until
-    /// the run is cancelled or execution ends with a HALT or
-    /// execution error.
-    pub fn run(&mut self, rom: ROM<'a>) -> Result<(), &'static str> {
-        self.mc.rom = Some(rom);
-        while !self.sm83.halted() {
-            self.sm83.execute(&mut self.mc)?;
-
-            // update IO according to time progress
-            let now = (self.time.now)(&self.time.ref_time);
-            let at_scanline = (now % VBLANK_SCANLINE_MILLIS) as u8;
-            self.mc.write(0xFF44, at_scanline);
+    /// Run one step in the emulation. The returned value is the expected
+    /// wait time for the next step call that must be awaited by the caller.
+    pub fn step(&mut self) -> Result<u32, &'static str> {
+        if self.sm83.halted() {
+            return Err("Halted");
         }
-        Ok(())
+
+        self.sm83.execute(&mut self.mc)?;
+
+        // update IO according to time progress
+        let now = (self.time.now)(&self.time.ref_time);
+        let at_scanline = (now % VBLANK_SCANLINE_MILLIS) as u8;
+        self.mc.write(0xFF44, at_scanline);
+        Ok(14) // TODO compute wait time here for next step
     }
 
     pub fn attach_debugger(&mut self, debugger: Debugger) {
