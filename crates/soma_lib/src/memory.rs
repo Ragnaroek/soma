@@ -32,8 +32,10 @@ impl<'a> MemoryController<'a> {
             }
         } else if addr >= IO_START && addr <= IO_END {
             self.io.read(addr)
+        } else if addr >= VRAM_START && addr <= VRAM_END {
+            self.vram[(addr - VRAM_START) as usize]
         } else {
-            panic!("mem read error");
+            panic!("mem read error: 0x{:x}", addr);
         }
     }
 

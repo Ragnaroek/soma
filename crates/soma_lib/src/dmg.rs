@@ -58,6 +58,95 @@ impl<'a, T> DMG<'a, T> {
         Ok(14) // TODO compute wait time here for next step
     }
 
+    /// Write the current content of the video-ram to the suppplied
+    /// framebuffer in RGB format.
+    /// The size needs to be at least 20 x 18 x 64 x 3 bytes.
+    /// 1.474.560 pixel
+    pub fn fb_rgb(&self, fb: &mut [u8]) {
+        // 20x18 only visible, only render that and figure out
+        // how the window is slided
+        for y in 0..32 {
+            for x in 0..32 {
+                // upper left corner of tile
+                let colour = (y * 32 + x) % 2;
+                let mut dst = (y * 8 * 3 * 32 * 8) + (x * 8 * 3);
+                for _ in 0..8 {
+                    for _ in 0..8 {
+                        match colour {
+                            // TODO this can be done with a 4x3 static array with the colour data!
+                            0 => {
+                                fb[dst + 0] = 0xEA;
+                                fb[dst + 1] = 0xEA;
+                                fb[dst + 2] = 0xEA;
+                            }
+                            1 => {
+                                fb[dst + 0] = 0x91;
+                                fb[dst + 1] = 0xCC;
+                                fb[dst + 2] = 0x78;
+                            }
+                            2 => {
+                                fb[dst + 0] = 0x51;
+                                fb[dst + 1] = 0x8C;
+                                fb[dst + 2] = 0x52;
+                            }
+                            3 => {
+                                fb[dst + 0] = 0x1F;
+                                fb[dst + 1] = 0x60;
+                                fb[dst + 2] = 0x18;
+                            }
+                            _ => {
+                                unreachable!("2 bits per pixel guaranteed through the shift")
+                            }
+                        }
+                        dst += 3;
+                    }
+                    dst += 31 * 8 * 3;
+                }
+            }
+        }
+    }
+
+    /*
+    let tile_map_addr = 0x9800 + x * 32 + y;
+    let tile_map_ix = self.mc.read(tile_map_addr) as u16;
+    let tile_start = 0x9000 + tile_map_ix * 16;
+    for tx in 0..8 {
+        for ty in 0..8 {
+            // 8x8=64 pixel in 16 bytes with each 4 pixel
+            let tile = self.mc.read(tile_start + tx * 8 + ty);
+            for p in 0..4 {
+                let pixel = (tile & (0b11 << p)) >> p;
+                let dst = ((x * 32 + y) + (tx * 8 + 8)) as usize;
+                match pixel {
+                    0 => {
+                        fb[dst + 0] = 0xEA;
+                        fb[dst + 1] = 0xEA;
+                        fb[dst + 2] = 0xEA;
+                    }
+                    1 => {
+                        fb[dst + 0] = 0x91;
+                        fb[dst + 1] = 0xCC;
+                        fb[dst + 2] = 0x78;
+                    }
+                    2 => {
+                        fb[dst + 0] = 0x51;
+                        fb[dst + 1] = 0x8C;
+                        fb[dst + 2] = 0x52;
+                    }
+                    3 => {
+                        fb[dst + 0] = 0x1F;
+                        fb[dst + 1] = 0x60;
+                        fb[dst + 2] = 0x18;
+                    }
+                    _ => {
+                        unreachable!("2 bits per pixel guranteed through the shift")
+                    }
+                }
+            }
+        }
+    }
+    */
+
     pub fn attach_debugger(&mut self, debugger: Debugger) {
         self.sm83.attach_debugger(debugger);
     }

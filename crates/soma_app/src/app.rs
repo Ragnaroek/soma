@@ -22,8 +22,10 @@ impl eframe::App for SomaApp {
         let fb = self.fb.read().unwrap();
 
         if fb.needs_update {
-            let image =
-                egui::ColorImage::from_rgb([dmg::RESOLUTION_X, dmg::RESOLUTION_Y], &fb.buffer);
+            let image = egui::ColorImage::from_rgb(
+                [256, 256], /*[dmg::RESOLUTION_X, dmg::RESOLUTION_Y]*/
+                &fb.buffer,
+            );
             let texture_handle = ui.load_texture("frame", image, egui::TextureOptions::default());
             ui.image(&texture_handle);
 

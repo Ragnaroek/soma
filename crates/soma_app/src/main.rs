@@ -33,7 +33,7 @@ fn main() -> eframe::Result {
     let rom_data = fs::read(rom_file).unwrap();
 
     let frame_buffer = Arc::new(RwLock::new(FrameBuffer {
-        buffer: vec![0u8; dmg::RESOLUTION_X * dmg::RESOLUTION_Y * 3],
+        buffer: vec![0u8; 32 * 32 * 64 * 3], //vec![0u8; dmg::RESOLUTION_X * dmg::RESOLUTION_Y * 3],
         needs_update: true,
     }));
     let frame_buffer_emu = frame_buffer.clone();
@@ -56,22 +56,24 @@ fn main() -> eframe::Result {
                 sleep(wait_millis).await;
 
                 let mut fb = frame_buffer_emu.write().unwrap();
-                for i in 0..(dmg::RESOLUTION_X * dmg::RESOLUTION_Y) {
+                /*for i in 0..(dmg::RESOLUTION_X * dmg::RESOLUTION_Y) {
                     let p = i * 3;
                     fb.buffer[p] = v;
                     fb.buffer[p + 1] = v;
                     fb.buffer[p + 2] = v;
-                }
+                }*/
+                dmg.fb_rgb(&mut fb.buffer);
                 fb.needs_update = true; // TODO determine the 'needs_update' in the step() function
             } else {
                 println!("ERR: {}", r.unwrap_err());
             }
 
-            v = v.wrapping_add(1);
+            //v = v.wrapping_add(1);
         }
     });
 
-    let dim = [dmg::RESOLUTION_X as f32, dmg::RESOLUTION_Y as f32];
+    //let dim = [dmg::RESOLUTION_X as f32, dmg::RESOLUTION_Y as f32];
+    let dim = [256.0, 256.0];
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
