@@ -10,7 +10,7 @@ use std::{fs, time::Instant};
 
 use libsoma::{
     ROM,
-    dmg::{self, DMG, Time},
+    dmg::{DMG, Time},
     sm83::{Debugger, SM83},
 };
 

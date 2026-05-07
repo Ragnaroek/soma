@@ -1,7 +1,5 @@
 use std::sync::{Arc, RwLock};
 
-use libsoma::dmg;
-
 pub struct FrameBuffer {
     pub buffer: Vec<u8>,
     pub needs_update: bool,
@@ -12,7 +10,7 @@ pub struct SomaApp {
 }
 
 impl SomaApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, fb: Arc<RwLock<FrameBuffer>>) -> SomaApp {
+    pub fn new(_cc: &eframe::CreationContext<'_>, fb: Arc<RwLock<FrameBuffer>>) -> SomaApp {
         SomaApp { fb }
     }
 }
