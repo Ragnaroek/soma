@@ -3,7 +3,7 @@
 mod app;
 mod util;
 
-use clap::{Arg, Command};
+use clap::{Arg, Command, Parser};
 use psy::arch::sm83::Sm83Instr;
 use std::sync::{Arc, RwLock};
 use std::{fs, time::Instant};
@@ -17,20 +17,22 @@ use libsoma::{
 use crate::app::{FrameBuffer, SomaApp};
 use crate::util::{sleep, spawn_async};
 
-fn main() -> eframe::Result {
-    let matches = Command::new("soma")
-        .version("0.0.1")
-        .about("gameboy emulator")
-        .arg(
-            Arg::new("ROMFILE")
-                .help("ROM file input")
-                .required(true)
-                .index(1),
-        )
-        .get_matches();
+#[derive(Parser)]
+#[command(version = "0.0.1", about = "gameboy emulator")]
+struct Cli {
+    /// ROM file input
+    #[arg(value_name = "ROM_FILE")]
+    rom: String,
 
-    let rom_file = matches.get_one::<String>("ROMFILE").unwrap();
-    let rom_data = fs::read(rom_file).unwrap();
+    /// Enable debug view mode
+    #[arg(long)]
+    debugger: bool,
+}
+
+fn main() -> eframe::Result {
+    let args = Cli::parse();
+
+    let rom_data = fs::read(args.rom).unwrap();
 
     let frame_buffer = Arc::new(RwLock::new(FrameBuffer {
         buffer: vec![0u8; 32 * 32 * 64 * 3], //vec![0u8; dmg::RESOLUTION_X * dmg::RESOLUTION_Y * 3],
