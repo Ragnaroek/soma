@@ -17,6 +17,9 @@ impl SomaApp {
     }
 }
 
+const REG_PANEL_WIDTH: f32 = 120.0;
+const MARGIN: f32 = 5.0;
+
 impl eframe::App for SomaApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         CentralPanel::default().show_inside(ui, |ui| {
@@ -39,7 +42,6 @@ impl eframe::App for SomaApp {
             egui::Frame::new()
                 .outer_margin(egui::Margin::same(5))
                 .show(ui, |ui| {
-                    // Draw double border
                     let painter = ui.painter();
                     let rect = ui.available_rect_before_wrap();
 
@@ -60,72 +62,72 @@ impl eframe::App for SomaApp {
                     ui.horizontal(|ui| {
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
                             egui::Frame::new()
-                                .inner_margin(egui::Margin::same(5))
+                                .inner_margin(egui::Margin::same(MARGIN as i8))
                                 .show(ui, |ui| {
-                                    ui.set_min_size(egui::vec2(300.0, 0.0));
+                                    let rect = ui.available_rect_before_wrap();
 
-                                    egui::Grid::new("grid_instructions")
-                                        .striped(true) // Optional: Adds alternating row colors
-                                        .show(ui, |ui| {
-                                            ui.label("(LD %a %b)");
-                                            ui.end_row();
+                                    ui.set_min_size(egui::vec2(
+                                        rect.width() - REG_PANEL_WIDTH,
+                                        0.0,
+                                    ));
 
-                                            ui.label("(LD %b %c)");
-                                            ui.end_row();
+                                    egui::Grid::new("grid_instructions").show(ui, |ui| {
+                                        ui.label("(LD %a %b)");
+                                        ui.end_row();
 
-                                            ui.label("(CP 144)");
-                                            ui.end_row();
-                                        });
+                                        ui.label("(LD %b %c)");
+                                        ui.end_row();
+
+                                        ui.label("(CP 144)");
+                                        ui.end_row();
+                                    });
                                 });
 
                             egui::Frame::new()
-                                .inner_margin(egui::Margin::same(5))
+                                .inner_margin(egui::Margin::same(MARGIN as i8))
                                 .show(ui, |ui| {
-                                    ui.set_min_size(egui::vec2(100.0, rect.height()));
+                                    ui.set_min_size(egui::vec2(REG_PANEL_WIDTH, rect.height()));
 
                                     let rect = ui.available_rect_before_wrap();
 
-                                    // Draw a left border using Painter
+                                    // left border
                                     let painter = ui.painter();
                                     let left_border_rect = egui::Rect::from_min_max(
-                                        egui::pos2(rect.min.x, rect.min.y),
-                                        egui::pos2(rect.min.x + 4.0, rect.max.y), // 4.0 = border thickness
+                                        egui::pos2(rect.min.x, rect.min.y - MARGIN),
+                                        egui::pos2(rect.min.x + 4.0, rect.max.y - MARGIN),
                                     );
 
-                                    // Draw the left border (color: white, thickness: 4.0)
                                     painter.rect_filled(
                                         left_border_rect,
                                         0.0,
                                         egui::Color32::WHITE,
                                     );
-                                    ui.add_space(5.0);
-                                    egui::Grid::new("grid_registers")
-                                        .striped(true) // Optional: Adds alternating row colors
-                                        .show(ui, |ui| {
-                                            ui.label("ab 0x6654");
-                                            ui.end_row();
+                                    ui.add_space(9.0);
+                                    egui::Grid::new("grid_registers").show(ui, |ui| {
+                                        ui.label("ab 0x6654");
+                                        ui.end_row();
 
-                                            ui.label("cd 0x7654");
-                                            ui.end_row();
+                                        ui.label("cd 0x7654");
+                                        ui.end_row();
 
-                                            ui.label("ef 0x8975");
-                                            ui.end_row();
+                                        ui.label("ef 0x8975");
+                                        ui.end_row();
 
-                                            ui.label("");
-                                            ui.end_row();
+                                        ui.label("");
+                                        ui.end_row();
 
-                                            ui.label("z=0");
-                                            ui.end_row();
+                                        ui.label("z=0");
+                                        ui.end_row();
 
-                                            ui.label("n=0");
-                                            ui.end_row();
+                                        ui.label("n=0");
+                                        ui.end_row();
 
-                                            ui.label("h=0");
-                                            ui.end_row();
+                                        ui.label("h=0");
+                                        ui.end_row();
 
-                                            ui.label("c=0");
-                                            ui.end_row();
-                                        });
+                                        ui.label("c=0");
+                                        ui.end_row();
+                                    });
                                 });
                         });
                     });
