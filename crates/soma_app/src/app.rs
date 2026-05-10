@@ -1,19 +1,46 @@
 use std::sync::{Arc, RwLock};
 
 use egui::CentralPanel;
+use libsoma::sm83::Register;
 
 pub struct FrameBuffer {
     pub buffer: Vec<u8>,
     pub needs_update: bool,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum StepControl {
+    Break,
+    NextStep,
+    Run,
+}
+
+pub struct DebugControl {
+    pub register: Register,
+    pub step_control: StepControl,
+}
+
+impl DebugControl {
+    pub fn new() -> DebugControl {
+        DebugControl {
+            register: Register::zero(),
+            step_control: StepControl::Break,
+        }
+    }
+}
+
 pub struct SomaApp {
     fb: Arc<RwLock<FrameBuffer>>,
+    debug_control: Arc<RwLock<DebugControl>>,
 }
 
 impl SomaApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>, fb: Arc<RwLock<FrameBuffer>>) -> SomaApp {
-        SomaApp { fb }
+    pub fn new(
+        _cc: &eframe::CreationContext<'_>,
+        fb: Arc<RwLock<FrameBuffer>>,
+        debug_control: Arc<RwLock<DebugControl>>,
+    ) -> SomaApp {
+        SomaApp { fb, debug_control }
     }
 }
 

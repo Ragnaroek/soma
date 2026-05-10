@@ -12,7 +12,7 @@ use libsoma::{
     dmg::{DMG, Time},
 };
 
-use crate::app::{FrameBuffer, SomaApp};
+use crate::app::{DebugControl, FrameBuffer, SomaApp, StepControl};
 use crate::util::{sleep, spawn_async};
 
 #[derive(Parser)]
@@ -38,6 +38,9 @@ fn main() -> eframe::Result {
     }));
     let frame_buffer_emu = frame_buffer.clone();
 
+    let debug_control = Arc::new(RwLock::new(DebugControl::new()));
+    let debug_control_emu = debug_control.clone();
+
     spawn_async(async move {
         let rom = ROM::new(&rom_data);
 
@@ -50,13 +53,23 @@ fn main() -> eframe::Result {
 
         let mut v = 0;
         loop {
+            let step_control = step_control(&debug_control_emu);
+            if step_control == StepControl::Break {
+                sleep(30).await;
+                continue;
+            }
             let r = dmg.step();
+            if step_control == StepControl::NextStep {
+                let mut debug_control = debug_control_emu.write().unwrap();
+                debug_control.step_control = StepControl::Break;
+            }
             if let Ok(step_result) = r {
                 sleep(step_result.wait_time_millis).await;
 
                 // debug
                 println!("executed: {:?}", step_result.instr.mnemonic);
 
+                // update framebuffer
                 let mut fb = frame_buffer_emu.write().unwrap();
                 /*
                 for i in 0..(dmg::RESOLUTION_X * dmg::RESOLUTION_Y) {
@@ -68,6 +81,10 @@ fn main() -> eframe::Result {
                 */
                 dmg.fb_rgb(&mut fb.buffer);
                 fb.needs_update = true; // TODO determine the 'needs_update' in the step() function
+
+                // update debug info
+                let mut debug_control = debug_control_emu.write().unwrap();
+                debug_control.register = dmg.sm83.reg.clone();
             } else {
                 println!("ERR: {}", r.err().unwrap());
             }
@@ -88,8 +105,13 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Soma",
         native_options,
-        Box::new(|cc| Ok(Box::new(SomaApp::new(cc, frame_buffer)))),
+        Box::new(|cc| Ok(Box::new(SomaApp::new(cc, frame_buffer, debug_control)))),
     )
+}
+
+fn step_control(debug_control: &Arc<RwLock<DebugControl>>) -> StepControl {
+    let ctrl = debug_control.read().unwrap();
+    ctrl.step_control
 }
 
 fn std_now(ref_time: &Instant) -> f64 {

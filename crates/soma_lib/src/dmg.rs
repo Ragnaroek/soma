@@ -10,7 +10,7 @@ pub const RESOLUTION_Y: usize = 144;
 
 pub struct DMG<'a, T> {
     time: Time<T>,
-    sm83: SM83,
+    pub sm83: SM83,
     mc: MemoryController<'a>,
 }
 

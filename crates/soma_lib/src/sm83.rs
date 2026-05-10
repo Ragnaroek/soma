@@ -15,9 +15,10 @@ const C: u8 = 1 << 4;
 
 pub struct SM83 {
     halted: bool,
-    reg: Register,
+    pub reg: Register,
 }
 
+#[derive(Clone, Copy)]
 pub struct Register {
     pub pc: u16,
     pub sp: u16,
