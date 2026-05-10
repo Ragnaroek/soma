@@ -1,7 +1,9 @@
+use psy::arch::sm83::Sm83Instr;
+
 use crate::ROM;
 use crate::io::IO;
 use crate::memory::MemoryController;
-use crate::sm83::{Debugger, SM83};
+use crate::sm83::SM83;
 
 pub const RESOLUTION_X: usize = 166;
 pub const RESOLUTION_Y: usize = 144;
@@ -27,6 +29,14 @@ pub struct Time<T> {
     pub now: RelativeTime<T>,
 }
 
+pub struct StepResult {
+    /// The time the caller should wait for the next step to simulate
+    /// the instruction timing.
+    pub wait_time_millis: u32,
+    /// The instruction that was executed in the step
+    pub instr: &'static Sm83Instr,
+}
+
 impl<'a, T> DMG<'a, T> {
     /// Initialise a original gameboy system (DMG)
     pub fn init(rom: ROM<'a>, time: Time<T>) -> DMG<'a, T> {
@@ -44,18 +54,21 @@ impl<'a, T> DMG<'a, T> {
 
     /// Run one step in the emulation. The returned value is the expected
     /// wait time for the next step call that must be awaited by the caller.
-    pub fn step(&mut self) -> Result<u32, &'static str> {
+    pub fn step(&mut self) -> Result<StepResult, &'static str> {
         if self.sm83.halted() {
             return Err("Halted");
         }
 
-        self.sm83.execute(&mut self.mc)?;
+        let instr = self.sm83.execute(&mut self.mc)?;
 
         // update IO according to time progress
         let now = (self.time.now)(&self.time.ref_time);
         let at_scanline = (now % VBLANK_SCANLINE_MILLIS) as u8;
         self.mc.write(0xFF44, at_scanline);
-        Ok(14) // TODO compute wait time here for next step
+        Ok(StepResult {
+            wait_time_millis: 14, // TODO compute wait time here for next step
+            instr,
+        })
     }
 
     /// Write the current content of the video-ram to the suppplied
@@ -119,9 +132,5 @@ impl<'a, T> DMG<'a, T> {
                 }
             }
         }
-    }
-
-    pub fn attach_debugger(&mut self, debugger: Debugger) {
-        self.sm83.attach_debugger(debugger);
     }
 }

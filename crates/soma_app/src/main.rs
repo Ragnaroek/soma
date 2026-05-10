@@ -3,15 +3,13 @@
 mod app;
 mod util;
 
-use clap::{Arg, Command, Parser};
-use psy::arch::sm83::Sm83Instr;
+use clap::Parser;
 use std::sync::{Arc, RwLock};
 use std::{fs, time::Instant};
 
 use libsoma::{
     ROM,
     dmg::{DMG, Time},
-    sm83::{Debugger, SM83},
 };
 
 use crate::app::{FrameBuffer, SomaApp};
@@ -49,25 +47,29 @@ fn main() -> eframe::Result {
         };
 
         let mut dmg = DMG::init(rom, timer);
-        dmg.attach_debugger(Debugger::new(cli_debug));
 
         let mut v = 0;
         loop {
             let r = dmg.step();
-            if let Ok(wait_millis) = r {
-                sleep(wait_millis).await;
+            if let Ok(step_result) = r {
+                sleep(step_result.wait_time_millis).await;
+
+                // debug
+                println!("executed: {:?}", step_result.instr.mnemonic);
 
                 let mut fb = frame_buffer_emu.write().unwrap();
-                /*for i in 0..(dmg::RESOLUTION_X * dmg::RESOLUTION_Y) {
+                /*
+                for i in 0..(dmg::RESOLUTION_X * dmg::RESOLUTION_Y) {
                     let p = i * 3;
                     fb.buffer[p] = v;
                     fb.buffer[p + 1] = v;
                     fb.buffer[p + 2] = v;
-                }*/
+                }
+                */
                 dmg.fb_rgb(&mut fb.buffer);
                 fb.needs_update = true; // TODO determine the 'needs_update' in the step() function
             } else {
-                println!("ERR: {}", r.unwrap_err());
+                println!("ERR: {}", r.err().unwrap());
             }
 
             //v = v.wrapping_add(1);
@@ -88,10 +90,6 @@ fn main() -> eframe::Result {
         native_options,
         Box::new(|cc| Ok(Box::new(SomaApp::new(cc, frame_buffer)))),
     )
-}
-
-fn cli_debug(instr: &Sm83Instr, _sm83: &mut SM83) {
-    println!("executed: {:?}", instr.mnemonic);
 }
 
 fn std_now(ref_time: &Instant) -> f64 {

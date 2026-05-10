@@ -14,7 +14,6 @@ const C: u8 = 1 << 4;
 /// SM83 CPU emulator
 
 pub struct SM83 {
-    debugger: Option<Debugger>,
     halted: bool,
     reg: Register,
 }
@@ -185,34 +184,21 @@ impl RegBuilder {
     }
 }
 
-pub struct Debugger {
-    debug: fn(&Sm83Instr, &mut SM83),
-}
-
-impl Debugger {
-    pub fn new(debug: fn(&Sm83Instr, &mut SM83)) -> Debugger {
-        Debugger { debug }
-    }
-}
-
 impl SM83 {
     pub fn init() -> SM83 {
         SM83 {
-            debugger: None,
             halted: false,
             reg: Register::zero(),
         }
     }
 
-    pub fn execute(&mut self, mc: &mut MemoryController) -> Result<(), &'static str> {
+    pub fn execute(
+        &mut self,
+        mc: &mut MemoryController,
+    ) -> Result<&'static Sm83Instr, &'static str> {
         let instr = sm83::decode(mc.read(self.pc()));
-
         EXEC_TABLE[instr.op_code as usize](self, mc)?;
-
-        if let Some(debugger) = &self.debugger {
-            (debugger.debug)(instr, self);
-        }
-        Ok(())
+        Ok(instr)
     }
 
     pub fn halted(&self) -> bool {
@@ -229,10 +215,6 @@ impl SM83 {
 
     pub fn pc(&self) -> u16 {
         self.reg.pc
-    }
-
-    pub fn attach_debugger(&mut self, debugger: Debugger) {
-        self.debugger = Some(debugger)
     }
 }
 
