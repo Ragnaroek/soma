@@ -1,7 +1,11 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
-use egui::CentralPanel;
-use libsoma::sm83::Register;
+use egui::{CentralPanel, FontDefinitions};
+use libsoma::{ROM, sm83::Register};
+use psy::arch::sm83::{self, Sm83Instr};
 
 pub struct FrameBuffer {
     pub buffer: Vec<u8>,
@@ -15,39 +19,51 @@ pub enum StepControl {
     Run,
 }
 
-pub struct DebugControl {
+pub struct DebuggerState {
     pub register: Register,
     pub step_control: StepControl,
+    pub disassemble: HashMap<u16, &'static Sm83Instr>,
 }
 
-impl DebugControl {
-    pub fn new() -> DebugControl {
-        DebugControl {
+impl DebuggerState {
+    pub fn new() -> DebuggerState {
+        DebuggerState {
             register: Register::zero(),
             step_control: StepControl::Break,
+            disassemble: HashMap::new(),
         }
     }
 }
 
-pub struct SomaApp {
+pub struct SomaApp<'a> {
     fb: Arc<RwLock<FrameBuffer>>,
-    debug_control: Arc<RwLock<DebugControl>>,
+    debugger_state: Arc<RwLock<DebuggerState>>,
+    rom: ROM<'a>,
 }
 
-impl SomaApp {
+impl<'a> SomaApp<'a> {
     pub fn new(
-        _cc: &eframe::CreationContext<'_>,
+        cc: &eframe::CreationContext<'_>,
         fb: Arc<RwLock<FrameBuffer>>,
-        debug_control: Arc<RwLock<DebugControl>>,
-    ) -> SomaApp {
-        SomaApp { fb, debug_control }
+        debugger_state: Arc<RwLock<DebuggerState>>,
+        rom: ROM<'a>,
+    ) -> SomaApp<'a> {
+        let mut fonts = FontDefinitions::default();
+        egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+        cc.egui_ctx.set_fonts(fonts);
+
+        SomaApp {
+            fb,
+            debugger_state,
+            rom,
+        }
     }
 }
 
 const REG_PANEL_WIDTH: f32 = 120.0;
 const MARGIN: f32 = 5.0;
 
-impl eframe::App for SomaApp {
+impl<'a> eframe::App for SomaApp<'a> {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         CentralPanel::default().show_inside(ui, |ui| {
             ui.vertical(|ui| {
@@ -98,16 +114,31 @@ impl eframe::App for SomaApp {
                                         0.0,
                                     ));
 
-                                    egui::Grid::new("grid_instructions").show(ui, |ui| {
-                                        ui.label("(LD %a %b)");
-                                        ui.end_row();
+                                    {
+                                        let mut debug_state = self.debugger_state.write().unwrap();
+                                        let pc = debug_state.register.pc;
+                                        let may_pc_instr = debug_state.disassemble.get(&pc);
+                                        if may_pc_instr.is_none() {
+                                            let instr = sm83::decode(self.rom.read_u8(pc as usize));
+                                            debug_state.disassemble.insert(pc, instr);
+                                        };
+                                    }
 
-                                        ui.label("(LD %b %c)");
-                                        ui.end_row();
+                                    let debug_state = self.debugger_state.read().unwrap();
+                                    let pc = debug_state.register.pc;
 
-                                        ui.label("(CP 144)");
-                                        ui.end_row();
-                                    });
+                                    egui::Grid::new("grid_instructions")
+                                        .min_col_width(0.0)
+                                        .show(ui, |ui| {
+                                            for i in (pc - 5)..pc {
+                                                instr_row(ui, i, false, &debug_state);
+                                            }
+                                            instr_row(ui, pc, true, &debug_state);
+
+                                            for i in (pc + 1)..(pc + 6) {
+                                                instr_row(ui, i, false, &debug_state);
+                                            }
+                                        });
                                 });
 
                             egui::Frame::new()
@@ -161,4 +192,24 @@ impl eframe::App for SomaApp {
                 });
         });
     }
+}
+
+fn instr_row(ui: &mut egui::Ui, pc: u16, mark_halt: bool, debug_state: &DebuggerState) {
+    if mark_halt {
+        ui.label(egui_phosphor::regular::PLAY);
+    } else {
+        ui.label("");
+    }
+
+    ui.label(format!("0x{:X}", pc));
+
+    let may_instr = debug_state.disassemble.get(&pc);
+    let instr_text = if let Some(instr) = may_instr {
+        &instr.text(None)
+    } else {
+        "???"
+    };
+
+    ui.label(instr_text);
+    ui.end_row();
 }

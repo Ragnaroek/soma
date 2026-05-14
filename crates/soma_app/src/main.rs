@@ -12,7 +12,7 @@ use libsoma::{
     dmg::{DMG, Time},
 };
 
-use crate::app::{DebugControl, FrameBuffer, SomaApp, StepControl};
+use crate::app::{DebuggerState, FrameBuffer, SomaApp, StepControl};
 use crate::util::{sleep, spawn_async};
 
 #[derive(Parser)]
@@ -38,29 +38,35 @@ fn main() -> eframe::Result {
     }));
     let frame_buffer_emu = frame_buffer.clone();
 
-    let debug_control = Arc::new(RwLock::new(DebugControl::new()));
-    let debug_control_emu = debug_control.clone();
+    let debug_rom_data = rom_data.clone();
+    let debug_app_rom = ROM::new(&debug_rom_data);
+    let debug_state = Arc::new(RwLock::new(DebuggerState::new()));
+    let debug_state_emu = debug_state.clone();
 
     spawn_async(async move {
-        let rom = ROM::new(&rom_data);
-
         let timer = Time {
             ref_time: Instant::now(),
             now: std_now,
         };
 
+        let rom = ROM::new(&rom_data);
         let mut dmg = DMG::init(rom, timer);
+
+        {
+            let mut debug_state_init = debug_state_emu.write().unwrap();
+            debug_state_init.register = dmg.sm83.reg.clone();
+        }
 
         let mut v = 0;
         loop {
-            let step_control = step_control(&debug_control_emu);
+            let step_control = step_control(&debug_state_emu);
             if step_control == StepControl::Break {
                 sleep(30).await;
                 continue;
             }
             let r = dmg.step();
             if step_control == StepControl::NextStep {
-                let mut debug_control = debug_control_emu.write().unwrap();
+                let mut debug_control = debug_state_emu.write().unwrap();
                 debug_control.step_control = StepControl::Break;
             }
             if let Ok(step_result) = r {
@@ -83,7 +89,7 @@ fn main() -> eframe::Result {
                 fb.needs_update = true; // TODO determine the 'needs_update' in the step() function
 
                 // update debug info
-                let mut debug_control = debug_control_emu.write().unwrap();
+                let mut debug_control = debug_state_emu.write().unwrap();
                 debug_control.register = dmg.sm83.reg.clone();
             } else {
                 println!("ERR: {}", r.err().unwrap());
@@ -105,11 +111,18 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Soma",
         native_options,
-        Box::new(|cc| Ok(Box::new(SomaApp::new(cc, frame_buffer, debug_control)))),
+        Box::new(|cc| {
+            Ok(Box::new(SomaApp::new(
+                cc,
+                frame_buffer,
+                debug_state,
+                debug_app_rom,
+            )))
+        }),
     )
 }
 
-fn step_control(debug_control: &Arc<RwLock<DebugControl>>) -> StepControl {
+fn step_control(debug_control: &Arc<RwLock<DebuggerState>>) -> StepControl {
     let ctrl = debug_control.read().unwrap();
     ctrl.step_control
 }
