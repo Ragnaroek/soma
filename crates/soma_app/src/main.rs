@@ -100,7 +100,7 @@ fn main() -> eframe::Result {
     });
 
     //let dim = [dmg::RESOLUTION_X as f32, dmg::RESOLUTION_Y as f32];
-    let dim = [800.0, 600.0];
+    let dim = [850.0, 700.0];
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

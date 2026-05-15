@@ -6,10 +6,10 @@ use psy::arch::sm83::{self, Sm83Instr};
 
 use crate::memory::MemoryController;
 
-const Z: u8 = 1 << 7;
-const N: u8 = 1 << 6;
-const H: u8 = 1 << 5;
-const C: u8 = 1 << 4;
+pub const Z: u8 = 1 << 7;
+pub const N: u8 = 1 << 6;
+pub const H: u8 = 1 << 5;
+pub const C: u8 = 1 << 4;
 
 /// SM83 CPU emulator
 

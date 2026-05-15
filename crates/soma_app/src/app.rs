@@ -4,8 +4,11 @@ use std::{
 };
 
 use egui::{CentralPanel, FontDefinitions};
-use libsoma::{ROM, sm83::Register};
-use psy::arch::sm83::{self, Sm83Instr};
+use libsoma::{
+    ROM,
+    sm83::{self, Register},
+};
+use psy::arch::sm83::Sm83Instr;
 
 pub struct FrameBuffer {
     pub buffer: Vec<u8>,
@@ -119,7 +122,9 @@ impl<'a> eframe::App for SomaApp<'a> {
                                         let pc = debug_state.register.pc;
                                         let may_pc_instr = debug_state.disassemble.get(&pc);
                                         if may_pc_instr.is_none() {
-                                            let instr = sm83::decode(self.rom.read_u8(pc as usize));
+                                            let instr = psy::arch::sm83::decode(
+                                                self.rom.read_u8(pc as usize),
+                                            );
                                             debug_state.disassemble.insert(pc, instr);
                                         };
                                     }
@@ -186,29 +191,66 @@ impl<'a> eframe::App for SomaApp<'a> {
                                         egui::Color32::WHITE,
                                     );
                                     ui.add_space(9.0);
+
+                                    let debug_state = self.debugger_state.read().unwrap();
+
                                     egui::Grid::new("grid_registers").show(ui, |ui| {
-                                        ui.label("ab 0x6654");
+                                        ui.label("a");
+                                        ui.label(hex_u8(debug_state.register.a));
                                         ui.end_row();
 
-                                        ui.label("cd 0x7654");
+                                        ui.label("b");
+                                        ui.label(hex_u8(debug_state.register.b));
+                                        ui.end_row();
+                                        ui.label("c");
+                                        ui.label(hex_u8(debug_state.register.c));
+                                        ui.end_row();
+                                        ui.label("bc");
+                                        ui.label(hex_u16(debug_state.register.bc()));
                                         ui.end_row();
 
-                                        ui.label("ef 0x8975");
+                                        ui.label("d");
+                                        ui.label(hex_u8(debug_state.register.d));
+                                        ui.end_row();
+                                        ui.label("e");
+                                        ui.label(hex_u8(debug_state.register.e));
+                                        ui.end_row();
+                                        ui.label("de");
+                                        ui.label(hex_u16(debug_state.register.de()));
                                         ui.end_row();
 
-                                        ui.label("");
+                                        ui.label("h");
+                                        ui.label(hex_u8(debug_state.register.h));
+                                        ui.end_row();
+                                        ui.label("l");
+                                        ui.label(hex_u8(debug_state.register.l));
+                                        ui.end_row();
+                                        ui.label("hl");
+                                        ui.label(hex_u16(debug_state.register.hl()));
                                         ui.end_row();
 
-                                        ui.label("z=0");
+                                        ui.label("sp");
+                                        ui.label(hex_u16(debug_state.register.sp));
                                         ui.end_row();
 
-                                        ui.label("n=0");
+                                        ui.label("pc");
+                                        ui.label(hex_u16(debug_state.register.pc));
                                         ui.end_row();
 
-                                        ui.label("h=0");
+                                        ui.label("z");
+                                        ui.label(flag(debug_state.register.f, sm83::Z));
                                         ui.end_row();
 
-                                        ui.label("c=0");
+                                        ui.label("n");
+                                        ui.label(flag(debug_state.register.f, sm83::N));
+                                        ui.end_row();
+
+                                        ui.label("h");
+                                        ui.label(flag(debug_state.register.f, sm83::H));
+                                        ui.end_row();
+
+                                        ui.label("c");
+                                        ui.label(flag(debug_state.register.f, sm83::C));
                                         ui.end_row();
                                     });
                                 });
@@ -217,6 +259,18 @@ impl<'a> eframe::App for SomaApp<'a> {
                 });
         });
     }
+}
+
+fn hex_u8(v: u8) -> String {
+    format!("{:02X}", v)
+}
+
+fn hex_u16(v: u16) -> String {
+    format!("{:04X}", v)
+}
+
+fn flag(v: u8, m: u8) -> &'static str {
+    if v & m == 0 { "0" } else { "1" }
 }
 
 fn instr_row_from_state(ui: &mut egui::Ui, loc: u16, mark_halt: bool, debug_state: &DebuggerState) {
