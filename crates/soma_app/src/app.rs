@@ -124,21 +124,32 @@ impl<'a> eframe::App for SomaApp<'a> {
                                         };
                                     }
 
-                                    let debug_state = self.debugger_state.read().unwrap();
-                                    let pc = debug_state.register.pc;
-
-                                    egui::Grid::new("grid_instructions")
-                                        .min_col_width(0.0)
-                                        .show(ui, |ui| {
-                                            for i in (pc - 5)..pc {
-                                                instr_row(ui, i, false, &debug_state);
-                                            }
-                                            instr_row(ui, pc, true, &debug_state);
-
-                                            for i in (pc + 1)..(pc + 6) {
-                                                instr_row(ui, i, false, &debug_state);
+                                    ui.vertical(|ui| {
+                                        ui.horizontal(|ui| {
+                                            if ui.button("Step").clicked() {
+                                                let mut debug_state =
+                                                    self.debugger_state.write().unwrap();
+                                                debug_state.step_control = StepControl::NextStep;
                                             }
                                         });
+
+                                        egui::Grid::new("grid_instructions")
+                                            .min_col_width(0.0)
+                                            .show(ui, |ui| {
+                                                let debug_state =
+                                                    self.debugger_state.read().unwrap();
+                                                let pc = debug_state.register.pc;
+
+                                                for i in (pc - 5)..pc {
+                                                    instr_row(ui, i, false, &debug_state);
+                                                }
+                                                instr_row(ui, pc, true, &debug_state);
+
+                                                for i in (pc + 1)..(pc + 6) {
+                                                    instr_row(ui, i, false, &debug_state);
+                                                }
+                                            });
+                                    });
                                 });
 
                             egui::Frame::new()
