@@ -159,13 +159,31 @@ impl<'a> eframe::App for SomaApp<'a> {
                                                 );
 
                                                 for loc_instr in instr_before {
-                                                    instr_row(ui, loc_instr.0, false, loc_instr.1);
+                                                    instr_row(
+                                                        ui,
+                                                        loc_instr.0,
+                                                        false,
+                                                        &self.rom,
+                                                        loc_instr.1,
+                                                    );
                                                 }
 
-                                                instr_row_from_state(ui, pc, true, &debug_state);
+                                                instr_row_from_state(
+                                                    ui,
+                                                    pc,
+                                                    true,
+                                                    &self.rom,
+                                                    &debug_state,
+                                                );
 
                                                 for loc_instr in instr_after {
-                                                    instr_row(ui, loc_instr.0, false, loc_instr.1);
+                                                    instr_row(
+                                                        ui,
+                                                        loc_instr.0,
+                                                        false,
+                                                        &self.rom,
+                                                        loc_instr.1,
+                                                    );
                                                 }
                                             });
                                     });
@@ -273,16 +291,28 @@ fn flag(v: u8, m: u8) -> &'static str {
     if v & m == 0 { "0" } else { "1" }
 }
 
-fn instr_row_from_state(ui: &mut egui::Ui, loc: u16, mark_halt: bool, debug_state: &DebuggerState) {
+fn instr_row_from_state(
+    ui: &mut egui::Ui,
+    loc: u16,
+    mark_halt: bool,
+    rom: &ROM,
+    debug_state: &DebuggerState,
+) {
     let may_instr = debug_state.disassemble.get(&loc);
     if let Some(instr) = may_instr {
-        instr_row(ui, loc, mark_halt, Some(*instr));
+        instr_row(ui, loc, mark_halt, rom, Some(*instr));
     } else {
-        instr_row(ui, loc, mark_halt, None);
+        instr_row(ui, loc, mark_halt, rom, None);
     };
 }
 
-fn instr_row(ui: &mut egui::Ui, loc: u16, mark_halt: bool, may_instr: Option<&Sm83Instr>) {
+fn instr_row(
+    ui: &mut egui::Ui,
+    loc: u16,
+    mark_halt: bool,
+    rom: &ROM,
+    may_instr: Option<&Sm83Instr>,
+) {
     if mark_halt {
         ui.label(egui_phosphor::regular::PLAY);
     } else {
@@ -292,7 +322,8 @@ fn instr_row(ui: &mut egui::Ui, loc: u16, mark_halt: bool, may_instr: Option<&Sm
     ui.label(format!("0x{:X}", loc));
 
     let instr_text = if let Some(instr) = may_instr {
-        &instr.text(None)
+        let loc_u = loc as usize;
+        &instr.text(Some(&rom.data[loc_u..(loc_u + 3)]))
     } else {
         "???"
     };

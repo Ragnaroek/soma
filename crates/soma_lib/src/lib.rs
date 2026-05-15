@@ -6,7 +6,7 @@ pub mod memory;
 pub mod sm83;
 
 pub struct ROM<'a> {
-    data: &'a [u8],
+    pub data: &'a [u8],
 }
 
 /// A ROM can contain more than u16::MAX data (the maximum address space
