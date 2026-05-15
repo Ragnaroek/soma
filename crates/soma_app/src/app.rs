@@ -140,13 +140,27 @@ impl<'a> eframe::App for SomaApp<'a> {
                                                     self.debugger_state.read().unwrap();
                                                 let pc = debug_state.register.pc;
 
-                                                for i in (pc - 5)..pc {
-                                                    instr_row(ui, i, false, &debug_state);
-                                                }
-                                                instr_row(ui, pc, true, &debug_state);
+                                                let instr_before = n_instr(
+                                                    pc,
+                                                    5,
+                                                    false, /*backward*/
+                                                    &debug_state,
+                                                );
+                                                let instr_after = n_instr(
+                                                    pc,
+                                                    5,
+                                                    true, /*forward*/
+                                                    &debug_state,
+                                                );
 
-                                                for i in (pc + 1)..(pc + 6) {
-                                                    instr_row(ui, i, false, &debug_state);
+                                                for loc_instr in instr_before {
+                                                    instr_row(ui, loc_instr.0, false, loc_instr.1);
+                                                }
+
+                                                instr_row_from_state(ui, pc, true, &debug_state);
+
+                                                for loc_instr in instr_after {
+                                                    instr_row(ui, loc_instr.0, false, loc_instr.1);
                                                 }
                                             });
                                     });
@@ -205,16 +219,24 @@ impl<'a> eframe::App for SomaApp<'a> {
     }
 }
 
-fn instr_row(ui: &mut egui::Ui, pc: u16, mark_halt: bool, debug_state: &DebuggerState) {
+fn instr_row_from_state(ui: &mut egui::Ui, loc: u16, mark_halt: bool, debug_state: &DebuggerState) {
+    let may_instr = debug_state.disassemble.get(&loc);
+    if let Some(instr) = may_instr {
+        instr_row(ui, loc, mark_halt, Some(*instr));
+    } else {
+        instr_row(ui, loc, mark_halt, None);
+    };
+}
+
+fn instr_row(ui: &mut egui::Ui, loc: u16, mark_halt: bool, may_instr: Option<&Sm83Instr>) {
     if mark_halt {
         ui.label(egui_phosphor::regular::PLAY);
     } else {
         ui.label("");
     }
 
-    ui.label(format!("0x{:X}", pc));
+    ui.label(format!("0x{:X}", loc));
 
-    let may_instr = debug_state.disassemble.get(&pc);
     let instr_text = if let Some(instr) = may_instr {
         &instr.text(None)
     } else {
@@ -223,4 +245,38 @@ fn instr_row(ui: &mut egui::Ui, pc: u16, mark_halt: bool, debug_state: &Debugger
 
     ui.label(instr_text);
     ui.end_row();
+}
+
+/// Find n confirmed instructions from the disassemble execution cache.
+/// The Vec returned will always be of size n, places where no instructions
+/// could be found will be filled with None,
+fn n_instr(
+    start: u16,
+    n: usize,
+    forward: bool,
+    debug_state: &DebuggerState,
+) -> Vec<(u16, Option<&'static Sm83Instr>)> {
+    let dir = if forward { 1 } else { -1 };
+    let mut result = Vec::with_capacity(n);
+
+    let mut pc = start as i16 + dir;
+    'instr: for _ in 0..n {
+        for z in 0..3 {
+            // a SM83 instruction can be max 3 bytes long
+            let may_instr = debug_state.disassemble.get(&((pc + (z * dir)) as u16));
+            if let Some(instr) = may_instr {
+                result.push((pc as u16, Some(*instr)));
+                pc += (z + 1) * dir;
+                continue 'instr;
+            }
+        }
+        // no instruction found
+        result.push((pc as u16, None));
+        pc += dir;
+    }
+
+    if !forward {
+        result.reverse();
+    }
+    result
 }
