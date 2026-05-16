@@ -123,7 +123,7 @@ fn test_jr() -> Result<(), &'static str> {
                 psy::arch::sm83::INSTR_JR_IF_NZ.op_code,
                 0xF8, // -7 jump
             ],
-            2,
+            10, // don't jump, as z is zero
         ),
         (
             "(jr #nz 0xF8) if #z is zero",
@@ -140,7 +140,7 @@ fn test_jr() -> Result<(), &'static str> {
                 psy::arch::sm83::INSTR_JR_IF_NZ.op_code,
                 0xF8, // -7 jump
             ],
-            10,
+            2, // jump back to pc=2, as z is not zero
         ),
     ];
 
