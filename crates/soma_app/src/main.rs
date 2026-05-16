@@ -12,7 +12,7 @@ use libsoma::{
     dmg::{DMG, Time},
 };
 
-use crate::app::{DebuggerState, FrameBuffer, SomaApp, StepControl};
+use crate::app::{DebuggerSharedState, FrameBuffer, SomaApp, StepControl};
 use crate::util::{sleep, spawn_async};
 
 #[derive(Parser)]
@@ -40,7 +40,7 @@ fn main() -> eframe::Result {
 
     let debug_rom_data = rom_data.clone();
     let debug_app_rom = ROM::new(&debug_rom_data);
-    let debug_state = Arc::new(RwLock::new(DebuggerState::new()));
+    let debug_state = Arc::new(RwLock::new(DebuggerSharedState::new()));
     let debug_state_emu = debug_state.clone();
 
     spawn_async(async move {
@@ -122,7 +122,7 @@ fn main() -> eframe::Result {
     )
 }
 
-fn step_control(debug_control: &Arc<RwLock<DebuggerState>>) -> StepControl {
+fn step_control(debug_control: &Arc<RwLock<DebuggerSharedState>>) -> StepControl {
     let ctrl = debug_control.read().unwrap();
     ctrl.step_control
 }

@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use egui::{CentralPanel, FontDefinitions};
+use egui::{Button, CentralPanel, FontDefinitions};
 use libsoma::{
     ROM,
     sm83::{self, Register},
@@ -22,25 +22,47 @@ pub enum StepControl {
     Run,
 }
 
-pub struct DebuggerState {
+/// Shared state between the emulator and the debugger
+pub struct DebuggerSharedState {
     pub register: Register,
     pub step_control: StepControl,
-    pub disassemble: HashMap<u16, &'static Sm83Instr>,
+}
+
+impl DebuggerSharedState {
+    pub fn new() -> DebuggerSharedState {
+        DebuggerSharedState {
+            register: Register::zero(),
+            step_control: StepControl::Break,
+        }
+    }
+}
+
+#[derive(PartialEq)]
+enum RegValueDisplay {
+    Hex,
+    Decimal,
+    Binary,
+}
+
+/// Non shared state.
+struct DebuggerState {
+    pub disassemble_cache: HashMap<u16, &'static Sm83Instr>,
+    pub reg_value_display: RegValueDisplay,
 }
 
 impl DebuggerState {
     pub fn new() -> DebuggerState {
         DebuggerState {
-            register: Register::zero(),
-            step_control: StepControl::Break,
-            disassemble: HashMap::new(),
+            disassemble_cache: HashMap::new(),
+            reg_value_display: RegValueDisplay::Hex,
         }
     }
 }
 
 pub struct SomaApp<'a> {
     fb: Arc<RwLock<FrameBuffer>>,
-    debugger_state: Arc<RwLock<DebuggerState>>,
+    shared_state: Arc<RwLock<DebuggerSharedState>>,
+    debugger_state: DebuggerState,
     rom: ROM<'a>,
 }
 
@@ -48,7 +70,7 @@ impl<'a> SomaApp<'a> {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         fb: Arc<RwLock<FrameBuffer>>,
-        debugger_state: Arc<RwLock<DebuggerState>>,
+        shared_state: Arc<RwLock<DebuggerSharedState>>,
         rom: ROM<'a>,
     ) -> SomaApp<'a> {
         let mut fonts = FontDefinitions::default();
@@ -57,13 +79,88 @@ impl<'a> SomaApp<'a> {
 
         SomaApp {
             fb,
-            debugger_state,
+            shared_state,
+            debugger_state: DebuggerState::new(),
             rom,
+        }
+    }
+
+    /// Find n confirmed instructions from the disassemble execution cache.
+    /// The Vec returned will always be of size n, places where no instructions
+    /// could be found will be filled with None,
+    fn n_instr(
+        &self,
+        start: u16,
+        n: usize,
+        forward: bool,
+    ) -> Vec<(u16, Option<&'static Sm83Instr>)> {
+        let dir = if forward { 1 } else { -1 };
+        let mut result = Vec::with_capacity(n);
+
+        let mut pc = start as i16 + dir;
+        'instr: for _ in 0..n {
+            for z in 0..3 {
+                // a SM83 instruction can be max 3 bytes long
+                let may_instr = self
+                    .debugger_state
+                    .disassemble_cache
+                    .get(&((pc + (z * dir)) as u16));
+                if let Some(instr) = may_instr {
+                    result.push((pc as u16, Some(*instr)));
+                    pc += (z + 1) * dir;
+                    continue 'instr;
+                }
+            }
+            // no instruction found
+            result.push((pc as u16, None));
+            pc += dir;
+        }
+
+        if !forward {
+            result.reverse();
+        }
+        result
+    }
+
+    fn instr_row_from_state(&self, ui: &mut egui::Ui, loc: u16, mark_halt: bool, rom: &ROM) {
+        let may_instr = self.debugger_state.disassemble_cache.get(&loc);
+        if let Some(instr) = may_instr {
+            instr_row(ui, loc, mark_halt, rom, Some(*instr));
+        } else {
+            instr_row(ui, loc, mark_halt, rom, None);
+        };
+    }
+
+    fn val_u8(&self, v: u8) -> String {
+        match self.debugger_state.reg_value_display {
+            RegValueDisplay::Binary => {
+                format!("{:08b}", v)
+            }
+            RegValueDisplay::Hex => {
+                format!("{:02X}", v)
+            }
+            RegValueDisplay::Decimal => {
+                format!("{}", v)
+            }
+        }
+    }
+
+    fn val_u16(&self, v: u16) -> String {
+        match self.debugger_state.reg_value_display {
+            RegValueDisplay::Binary => {
+                format!("{:016b}", v)
+            }
+            RegValueDisplay::Hex => {
+                format!("{:04X}", v)
+            }
+            RegValueDisplay::Decimal => {
+                format!("{}", v)
+            }
         }
     }
 }
 
-const REG_PANEL_WIDTH: f32 = 120.0;
+const REG_PANEL_WIDTH: f32 = 210.0;
 const MARGIN: f32 = 5.0;
 
 impl<'a> eframe::App for SomaApp<'a> {
@@ -118,45 +215,38 @@ impl<'a> eframe::App for SomaApp<'a> {
                                     ));
 
                                     {
-                                        let mut debug_state = self.debugger_state.write().unwrap();
-                                        let pc = debug_state.register.pc;
-                                        let may_pc_instr = debug_state.disassemble.get(&pc);
+                                        let shared_state = self.shared_state.read().unwrap();
+                                        let pc = shared_state.register.pc;
+                                        let may_pc_instr =
+                                            self.debugger_state.disassemble_cache.get(&pc);
                                         if may_pc_instr.is_none() {
                                             let instr = psy::arch::sm83::decode(
                                                 self.rom.read_u8(pc as usize),
                                             );
-                                            debug_state.disassemble.insert(pc, instr);
+                                            self.debugger_state.disassemble_cache.insert(pc, instr);
                                         };
                                     }
 
                                     ui.vertical(|ui| {
                                         ui.horizontal(|ui| {
                                             if ui.button("Step").clicked() {
-                                                let mut debug_state =
-                                                    self.debugger_state.write().unwrap();
-                                                debug_state.step_control = StepControl::NextStep;
+                                                let mut shared_state =
+                                                    self.shared_state.write().unwrap();
+                                                shared_state.step_control = StepControl::NextStep;
                                             }
                                         });
 
                                         egui::Grid::new("grid_instructions")
                                             .min_col_width(0.0)
                                             .show(ui, |ui| {
-                                                let debug_state =
-                                                    self.debugger_state.read().unwrap();
-                                                let pc = debug_state.register.pc;
+                                                let shared_state =
+                                                    self.shared_state.read().unwrap();
+                                                let pc = shared_state.register.pc;
 
-                                                let instr_before = n_instr(
-                                                    pc,
-                                                    5,
-                                                    false, /*backward*/
-                                                    &debug_state,
-                                                );
-                                                let instr_after = n_instr(
-                                                    pc,
-                                                    5,
-                                                    true, /*forward*/
-                                                    &debug_state,
-                                                );
+                                                let instr_before =
+                                                    self.n_instr(pc, 5, false /*backward*/);
+                                                let instr_after =
+                                                    self.n_instr(pc, 5, true /*forward*/);
 
                                                 for loc_instr in instr_before {
                                                     instr_row(
@@ -168,13 +258,7 @@ impl<'a> eframe::App for SomaApp<'a> {
                                                     );
                                                 }
 
-                                                instr_row_from_state(
-                                                    ui,
-                                                    pc,
-                                                    true,
-                                                    &self.rom,
-                                                    &debug_state,
-                                                );
+                                                self.instr_row_from_state(ui, pc, true, &self.rom);
 
                                                 for loc_instr in instr_after {
                                                     instr_row(
@@ -210,66 +294,103 @@ impl<'a> eframe::App for SomaApp<'a> {
                                     );
                                     ui.add_space(9.0);
 
-                                    let debug_state = self.debugger_state.read().unwrap();
+                                    ui.vertical(|ui| {
+                                        ui.horizontal(|ui| {
+                                            if ui
+                                                .add(Button::selectable(
+                                                    self.debugger_state.reg_value_display
+                                                        == RegValueDisplay::Hex,
+                                                    "Hex",
+                                                ))
+                                                .clicked()
+                                            {
+                                                self.debugger_state.reg_value_display =
+                                                    RegValueDisplay::Hex
+                                            };
+                                            if ui
+                                                .add(Button::selectable(
+                                                    self.debugger_state.reg_value_display
+                                                        == RegValueDisplay::Binary,
+                                                    "Bin",
+                                                ))
+                                                .clicked()
+                                            {
+                                                self.debugger_state.reg_value_display =
+                                                    RegValueDisplay::Binary
+                                            };
+                                            if ui
+                                                .add(Button::selectable(
+                                                    self.debugger_state.reg_value_display
+                                                        == RegValueDisplay::Decimal,
+                                                    "Dec",
+                                                ))
+                                                .clicked()
+                                            {
+                                                self.debugger_state.reg_value_display =
+                                                    RegValueDisplay::Decimal
+                                            };
+                                        });
 
-                                    egui::Grid::new("grid_registers").show(ui, |ui| {
-                                        ui.label("a");
-                                        ui.label(hex_u8(debug_state.register.a));
-                                        ui.end_row();
+                                        let shared_state = self.shared_state.read().unwrap();
+                                        egui::Grid::new("grid_registers").show(ui, |ui| {
+                                            ui.label("a");
+                                            ui.label(self.val_u8(shared_state.register.a));
+                                            ui.end_row();
 
-                                        ui.label("b");
-                                        ui.label(hex_u8(debug_state.register.b));
-                                        ui.end_row();
-                                        ui.label("c");
-                                        ui.label(hex_u8(debug_state.register.c));
-                                        ui.end_row();
-                                        ui.label("bc");
-                                        ui.label(hex_u16(debug_state.register.bc()));
-                                        ui.end_row();
+                                            ui.label("b");
+                                            ui.label(self.val_u8(shared_state.register.b));
+                                            ui.end_row();
+                                            ui.label("c");
+                                            ui.label(self.val_u8(shared_state.register.c));
+                                            ui.end_row();
+                                            ui.label("bc");
+                                            ui.label(self.val_u16(shared_state.register.bc()));
+                                            ui.end_row();
 
-                                        ui.label("d");
-                                        ui.label(hex_u8(debug_state.register.d));
-                                        ui.end_row();
-                                        ui.label("e");
-                                        ui.label(hex_u8(debug_state.register.e));
-                                        ui.end_row();
-                                        ui.label("de");
-                                        ui.label(hex_u16(debug_state.register.de()));
-                                        ui.end_row();
+                                            ui.label("d");
+                                            ui.label(self.val_u8(shared_state.register.d));
+                                            ui.end_row();
+                                            ui.label("e");
+                                            ui.label(self.val_u8(shared_state.register.e));
+                                            ui.end_row();
+                                            ui.label("de");
+                                            ui.label(self.val_u16(shared_state.register.de()));
+                                            ui.end_row();
 
-                                        ui.label("h");
-                                        ui.label(hex_u8(debug_state.register.h));
-                                        ui.end_row();
-                                        ui.label("l");
-                                        ui.label(hex_u8(debug_state.register.l));
-                                        ui.end_row();
-                                        ui.label("hl");
-                                        ui.label(hex_u16(debug_state.register.hl()));
-                                        ui.end_row();
+                                            ui.label("h");
+                                            ui.label(self.val_u8(shared_state.register.h));
+                                            ui.end_row();
+                                            ui.label("l");
+                                            ui.label(self.val_u8(shared_state.register.l));
+                                            ui.end_row();
+                                            ui.label("hl");
+                                            ui.label(self.val_u16(shared_state.register.hl()));
+                                            ui.end_row();
 
-                                        ui.label("sp");
-                                        ui.label(hex_u16(debug_state.register.sp));
-                                        ui.end_row();
+                                            ui.label("sp");
+                                            ui.label(self.val_u16(shared_state.register.sp));
+                                            ui.end_row();
 
-                                        ui.label("pc");
-                                        ui.label(hex_u16(debug_state.register.pc));
-                                        ui.end_row();
+                                            ui.label("pc");
+                                            ui.label(self.val_u16(shared_state.register.pc));
+                                            ui.end_row();
 
-                                        ui.label("z");
-                                        ui.label(flag(debug_state.register.f, sm83::Z));
-                                        ui.end_row();
+                                            ui.label("z");
+                                            ui.label(flag(shared_state.register.f, sm83::Z));
+                                            ui.end_row();
 
-                                        ui.label("n");
-                                        ui.label(flag(debug_state.register.f, sm83::N));
-                                        ui.end_row();
+                                            ui.label("n");
+                                            ui.label(flag(shared_state.register.f, sm83::N));
+                                            ui.end_row();
 
-                                        ui.label("h");
-                                        ui.label(flag(debug_state.register.f, sm83::H));
-                                        ui.end_row();
+                                            ui.label("h");
+                                            ui.label(flag(shared_state.register.f, sm83::H));
+                                            ui.end_row();
 
-                                        ui.label("c");
-                                        ui.label(flag(debug_state.register.f, sm83::C));
-                                        ui.end_row();
+                                            ui.label("c");
+                                            ui.label(flag(shared_state.register.f, sm83::C));
+                                            ui.end_row();
+                                        });
                                     });
                                 });
                         });
@@ -279,31 +400,8 @@ impl<'a> eframe::App for SomaApp<'a> {
     }
 }
 
-fn hex_u8(v: u8) -> String {
-    format!("{:02X}", v)
-}
-
-fn hex_u16(v: u16) -> String {
-    format!("{:04X}", v)
-}
-
 fn flag(v: u8, m: u8) -> &'static str {
     if v & m == 0 { "0" } else { "1" }
-}
-
-fn instr_row_from_state(
-    ui: &mut egui::Ui,
-    loc: u16,
-    mark_halt: bool,
-    rom: &ROM,
-    debug_state: &DebuggerState,
-) {
-    let may_instr = debug_state.disassemble.get(&loc);
-    if let Some(instr) = may_instr {
-        instr_row(ui, loc, mark_halt, rom, Some(*instr));
-    } else {
-        instr_row(ui, loc, mark_halt, rom, None);
-    };
 }
 
 fn instr_row(
@@ -330,38 +428,4 @@ fn instr_row(
 
     ui.label(instr_text);
     ui.end_row();
-}
-
-/// Find n confirmed instructions from the disassemble execution cache.
-/// The Vec returned will always be of size n, places where no instructions
-/// could be found will be filled with None,
-fn n_instr(
-    start: u16,
-    n: usize,
-    forward: bool,
-    debug_state: &DebuggerState,
-) -> Vec<(u16, Option<&'static Sm83Instr>)> {
-    let dir = if forward { 1 } else { -1 };
-    let mut result = Vec::with_capacity(n);
-
-    let mut pc = start as i16 + dir;
-    'instr: for _ in 0..n {
-        for z in 0..3 {
-            // a SM83 instruction can be max 3 bytes long
-            let may_instr = debug_state.disassemble.get(&((pc + (z * dir)) as u16));
-            if let Some(instr) = may_instr {
-                result.push((pc as u16, Some(*instr)));
-                pc += (z + 1) * dir;
-                continue 'instr;
-            }
-        }
-        // no instruction found
-        result.push((pc as u16, None));
-        pc += dir;
-    }
-
-    if !forward {
-        result.reverse();
-    }
-    result
 }
