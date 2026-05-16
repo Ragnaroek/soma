@@ -1,5 +1,8 @@
-run:
+run-debug:
     cargo run --features desktop -- ../../testdata/hello_world.gb --debugger
+
+run:
+	cargo run --features desktop -- ../../testdata/hello_world.gb
 
 test:
     cargo test

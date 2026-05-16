@@ -29,10 +29,10 @@ pub struct DebuggerSharedState {
 }
 
 impl DebuggerSharedState {
-    pub fn new() -> DebuggerSharedState {
+    pub fn new(step_control: StepControl) -> DebuggerSharedState {
         DebuggerSharedState {
             register: Register::zero(),
-            step_control: StepControl::Break,
+            step_control,
         }
     }
 }
@@ -61,28 +61,36 @@ impl DebuggerState {
 
 pub struct SomaApp<'a> {
     fb: Arc<RwLock<FrameBuffer>>,
+    debug: Option<Debug<'a>>,
+}
+
+pub struct Debug<'a> {
     shared_state: Arc<RwLock<DebuggerSharedState>>,
     debugger_state: DebuggerState,
     rom: ROM<'a>,
+}
+
+impl<'a> Debug<'a> {
+    pub fn new(shared_state: Arc<RwLock<DebuggerSharedState>>, rom: ROM<'a>) -> Debug<'a> {
+        Debug {
+            shared_state,
+            debugger_state: DebuggerState::new(),
+            rom,
+        }
+    }
 }
 
 impl<'a> SomaApp<'a> {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         fb: Arc<RwLock<FrameBuffer>>,
-        shared_state: Arc<RwLock<DebuggerSharedState>>,
-        rom: ROM<'a>,
+        debug: Option<Debug<'a>>,
     ) -> SomaApp<'a> {
         let mut fonts = FontDefinitions::default();
         egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
         cc.egui_ctx.set_fonts(fonts);
 
-        SomaApp {
-            fb,
-            shared_state,
-            debugger_state: DebuggerState::new(),
-            rom,
-        }
+        SomaApp { fb, debug }
     }
 
     /// Find n confirmed instructions from the disassemble execution cache.
@@ -102,6 +110,9 @@ impl<'a> SomaApp<'a> {
             for z in 0..3 {
                 // a SM83 instruction can be max 3 bytes long
                 let may_instr = self
+                    .debug
+                    .as_ref()
+                    .expect("debug")
                     .debugger_state
                     .disassemble_cache
                     .get(&((pc + (z * dir)) as u16));
@@ -123,7 +134,13 @@ impl<'a> SomaApp<'a> {
     }
 
     fn instr_row_from_state(&self, ui: &mut egui::Ui, loc: u16, mark_halt: bool, rom: &ROM) {
-        let may_instr = self.debugger_state.disassemble_cache.get(&loc);
+        let may_instr = self
+            .debug
+            .as_ref()
+            .unwrap()
+            .debugger_state
+            .disassemble_cache
+            .get(&loc);
         if let Some(instr) = may_instr {
             instr_row(ui, loc, mark_halt, rom, Some(*instr));
         } else {
@@ -132,7 +149,13 @@ impl<'a> SomaApp<'a> {
     }
 
     fn val_u8(&self, v: u8) -> String {
-        match self.debugger_state.reg_value_display {
+        match self
+            .debug
+            .as_ref()
+            .unwrap()
+            .debugger_state
+            .reg_value_display
+        {
             RegValueDisplay::Binary => {
                 format!("{:08b}", v)
             }
@@ -146,7 +169,13 @@ impl<'a> SomaApp<'a> {
     }
 
     fn val_u16(&self, v: u16) -> String {
-        match self.debugger_state.reg_value_display {
+        match self
+            .debug
+            .as_ref()
+            .unwrap()
+            .debugger_state
+            .reg_value_display
+        {
             RegValueDisplay::Binary => {
                 format!("{:016b}", v)
             }
@@ -182,220 +211,270 @@ impl<'a> eframe::App for SomaApp<'a> {
                 }
             });
 
-            egui::Frame::new()
-                .outer_margin(egui::Margin::same(5))
-                .show(ui, |ui| {
-                    let painter = ui.painter();
-                    let rect = ui.available_rect_before_wrap();
+            if self.debug.is_some() {
+                egui::Frame::new()
+                    .outer_margin(egui::Margin::same(5))
+                    .show(ui, |ui| {
+                        let painter = ui.painter();
+                        let rect = ui.available_rect_before_wrap();
 
-                    painter.rect_stroke(
-                        //rect.expand(4.0),
-                        rect,
-                        0.0,
-                        egui::Stroke::new(2.0, egui::Color32::WHITE),
-                        egui::StrokeKind::Outside,
-                    );
-                    painter.rect_stroke(
-                        rect.expand(4.0),
-                        0.0,
-                        egui::Stroke::new(1.0, egui::Color32::WHITE),
-                        egui::StrokeKind::Outside,
-                    );
+                        painter.rect_stroke(
+                            //rect.expand(4.0),
+                            rect,
+                            0.0,
+                            egui::Stroke::new(2.0, egui::Color32::WHITE),
+                            egui::StrokeKind::Outside,
+                        );
+                        painter.rect_stroke(
+                            rect.expand(4.0),
+                            0.0,
+                            egui::Stroke::new(1.0, egui::Color32::WHITE),
+                            egui::StrokeKind::Outside,
+                        );
 
-                    ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
-                            egui::Frame::new()
-                                .inner_margin(egui::Margin::same(MARGIN as i8))
-                                .show(ui, |ui| {
-                                    let rect = ui.available_rect_before_wrap();
+                        ui.horizontal(|ui| {
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
+                                egui::Frame::new()
+                                    .inner_margin(egui::Margin::same(MARGIN as i8))
+                                    .show(ui, |ui| {
+                                        let rect = ui.available_rect_before_wrap();
 
-                                    ui.set_min_size(egui::vec2(
-                                        rect.width() - REG_PANEL_WIDTH,
-                                        0.0,
-                                    ));
+                                        ui.set_min_size(egui::vec2(
+                                            rect.width() - REG_PANEL_WIDTH,
+                                            0.0,
+                                        ));
 
-                                    {
-                                        let shared_state = self.shared_state.read().unwrap();
-                                        let pc = shared_state.register.pc;
-                                        let may_pc_instr =
-                                            self.debugger_state.disassemble_cache.get(&pc);
-                                        if may_pc_instr.is_none() {
-                                            let instr = psy::arch::sm83::decode(
-                                                self.rom.read_u8(pc as usize),
-                                            );
-                                            self.debugger_state.disassemble_cache.insert(pc, instr);
-                                        };
-                                    }
+                                        {
+                                            let debug = self.debug.as_mut().unwrap();
+                                            let shared_state = debug.shared_state.read().unwrap();
+                                            let pc = shared_state.register.pc;
+                                            let may_pc_instr =
+                                                debug.debugger_state.disassemble_cache.get(&pc);
+                                            if may_pc_instr.is_none() {
+                                                let instr = psy::arch::sm83::decode(
+                                                    debug.rom.read_u8(pc as usize),
+                                                );
+                                                debug
+                                                    .debugger_state
+                                                    .disassemble_cache
+                                                    .insert(pc, instr);
+                                            };
+                                        }
 
-                                    ui.vertical(|ui| {
-                                        ui.horizontal(|ui| {
-                                            if ui.button("Step").clicked() {
-                                                let mut shared_state =
-                                                    self.shared_state.write().unwrap();
-                                                shared_state.step_control = StepControl::NextStep;
-                                            }
-                                        });
-
-                                        egui::Grid::new("grid_instructions")
-                                            .min_col_width(0.0)
-                                            .show(ui, |ui| {
-                                                let shared_state =
-                                                    self.shared_state.read().unwrap();
-                                                let pc = shared_state.register.pc;
-
-                                                let instr_before =
-                                                    self.n_instr(pc, 5, false /*backward*/);
-                                                let instr_after =
-                                                    self.n_instr(pc, 5, true /*forward*/);
-
-                                                for loc_instr in instr_before {
-                                                    instr_row(
-                                                        ui,
-                                                        loc_instr.0,
-                                                        false,
-                                                        &self.rom,
-                                                        loc_instr.1,
-                                                    );
-                                                }
-
-                                                self.instr_row_from_state(ui, pc, true, &self.rom);
-
-                                                for loc_instr in instr_after {
-                                                    instr_row(
-                                                        ui,
-                                                        loc_instr.0,
-                                                        false,
-                                                        &self.rom,
-                                                        loc_instr.1,
-                                                    );
+                                        ui.vertical(|ui| {
+                                            ui.horizontal(|ui| {
+                                                if ui.button("Step").clicked() {
+                                                    let mut shared_state = self
+                                                        .debug
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .shared_state
+                                                        .write()
+                                                        .unwrap();
+                                                    shared_state.step_control =
+                                                        StepControl::NextStep;
                                                 }
                                             });
-                                    });
-                                });
 
-                            egui::Frame::new()
-                                .inner_margin(egui::Margin::same(MARGIN as i8))
-                                .show(ui, |ui| {
-                                    ui.set_min_size(egui::vec2(REG_PANEL_WIDTH, rect.height()));
+                                            egui::Grid::new("grid_instructions")
+                                                .min_col_width(0.0)
+                                                .show(ui, |ui| {
+                                                    let shared_state = self
+                                                        .debug
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .shared_state
+                                                        .read()
+                                                        .unwrap();
+                                                    let pc = shared_state.register.pc;
 
-                                    let rect = ui.available_rect_before_wrap();
+                                                    let instr_before = self
+                                                        .n_instr(pc, 5, false /*backward*/);
+                                                    let instr_after =
+                                                        self.n_instr(pc, 5, true /*forward*/);
 
-                                    // left border
-                                    let painter = ui.painter();
-                                    let left_border_rect = egui::Rect::from_min_max(
-                                        egui::pos2(rect.min.x, rect.min.y - MARGIN),
-                                        egui::pos2(rect.min.x + 4.0, rect.max.y - MARGIN),
-                                    );
+                                                    for loc_instr in instr_before {
+                                                        instr_row(
+                                                            ui,
+                                                            loc_instr.0,
+                                                            false,
+                                                            &self.debug.as_ref().unwrap().rom,
+                                                            loc_instr.1,
+                                                        );
+                                                    }
 
-                                    painter.rect_filled(
-                                        left_border_rect,
-                                        0.0,
-                                        egui::Color32::WHITE,
-                                    );
-                                    ui.add_space(9.0);
+                                                    self.instr_row_from_state(
+                                                        ui,
+                                                        pc,
+                                                        true,
+                                                        &self.debug.as_ref().unwrap().rom,
+                                                    );
 
-                                    ui.vertical(|ui| {
-                                        ui.horizontal(|ui| {
-                                            if ui
-                                                .add(Button::selectable(
-                                                    self.debugger_state.reg_value_display
-                                                        == RegValueDisplay::Hex,
-                                                    "Hex",
-                                                ))
-                                                .clicked()
-                                            {
-                                                self.debugger_state.reg_value_display =
-                                                    RegValueDisplay::Hex
-                                            };
-                                            if ui
-                                                .add(Button::selectable(
-                                                    self.debugger_state.reg_value_display
-                                                        == RegValueDisplay::Binary,
-                                                    "Bin",
-                                                ))
-                                                .clicked()
-                                            {
-                                                self.debugger_state.reg_value_display =
-                                                    RegValueDisplay::Binary
-                                            };
-                                            if ui
-                                                .add(Button::selectable(
-                                                    self.debugger_state.reg_value_display
-                                                        == RegValueDisplay::Decimal,
-                                                    "Dec",
-                                                ))
-                                                .clicked()
-                                            {
-                                                self.debugger_state.reg_value_display =
-                                                    RegValueDisplay::Decimal
-                                            };
-                                        });
-
-                                        let shared_state = self.shared_state.read().unwrap();
-                                        egui::Grid::new("grid_registers").show(ui, |ui| {
-                                            ui.label("a");
-                                            ui.label(self.val_u8(shared_state.register.a));
-                                            ui.end_row();
-
-                                            ui.label("b");
-                                            ui.label(self.val_u8(shared_state.register.b));
-                                            ui.end_row();
-                                            ui.label("c");
-                                            ui.label(self.val_u8(shared_state.register.c));
-                                            ui.end_row();
-                                            ui.label("bc");
-                                            ui.label(self.val_u16(shared_state.register.bc()));
-                                            ui.end_row();
-
-                                            ui.label("d");
-                                            ui.label(self.val_u8(shared_state.register.d));
-                                            ui.end_row();
-                                            ui.label("e");
-                                            ui.label(self.val_u8(shared_state.register.e));
-                                            ui.end_row();
-                                            ui.label("de");
-                                            ui.label(self.val_u16(shared_state.register.de()));
-                                            ui.end_row();
-
-                                            ui.label("h");
-                                            ui.label(self.val_u8(shared_state.register.h));
-                                            ui.end_row();
-                                            ui.label("l");
-                                            ui.label(self.val_u8(shared_state.register.l));
-                                            ui.end_row();
-                                            ui.label("hl");
-                                            ui.label(self.val_u16(shared_state.register.hl()));
-                                            ui.end_row();
-
-                                            ui.label("sp");
-                                            ui.label(self.val_u16(shared_state.register.sp));
-                                            ui.end_row();
-
-                                            ui.label("pc");
-                                            ui.label(self.val_u16(shared_state.register.pc));
-                                            ui.end_row();
-
-                                            ui.label("z");
-                                            ui.label(flag(shared_state.register.f, sm83::Z));
-                                            ui.end_row();
-
-                                            ui.label("n");
-                                            ui.label(flag(shared_state.register.f, sm83::N));
-                                            ui.end_row();
-
-                                            ui.label("h");
-                                            ui.label(flag(shared_state.register.f, sm83::H));
-                                            ui.end_row();
-
-                                            ui.label("c");
-                                            ui.label(flag(shared_state.register.f, sm83::C));
-                                            ui.end_row();
+                                                    for loc_instr in instr_after {
+                                                        instr_row(
+                                                            ui,
+                                                            loc_instr.0,
+                                                            false,
+                                                            &self.debug.as_ref().unwrap().rom,
+                                                            loc_instr.1,
+                                                        );
+                                                    }
+                                                });
                                         });
                                     });
-                                });
+
+                                egui::Frame::new()
+                                    .inner_margin(egui::Margin::same(MARGIN as i8))
+                                    .show(ui, |ui| {
+                                        ui.set_min_size(egui::vec2(REG_PANEL_WIDTH, rect.height()));
+
+                                        let rect = ui.available_rect_before_wrap();
+
+                                        // left border
+                                        let painter = ui.painter();
+                                        let left_border_rect = egui::Rect::from_min_max(
+                                            egui::pos2(rect.min.x, rect.min.y - MARGIN),
+                                            egui::pos2(rect.min.x + 4.0, rect.max.y - MARGIN),
+                                        );
+
+                                        painter.rect_filled(
+                                            left_border_rect,
+                                            0.0,
+                                            egui::Color32::WHITE,
+                                        );
+                                        ui.add_space(9.0);
+
+                                        ui.vertical(|ui| {
+                                            ui.horizontal(|ui| {
+                                                if ui
+                                                    .add(Button::selectable(
+                                                        self.debug
+                                                            .as_ref()
+                                                            .unwrap()
+                                                            .debugger_state
+                                                            .reg_value_display
+                                                            == RegValueDisplay::Hex,
+                                                        "Hex",
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    self.debug
+                                                        .as_mut()
+                                                        .unwrap()
+                                                        .debugger_state
+                                                        .reg_value_display = RegValueDisplay::Hex
+                                                };
+                                                if ui
+                                                    .add(Button::selectable(
+                                                        self.debug
+                                                            .as_ref()
+                                                            .unwrap()
+                                                            .debugger_state
+                                                            .reg_value_display
+                                                            == RegValueDisplay::Binary,
+                                                        "Bin",
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    self.debug
+                                                        .as_mut()
+                                                        .unwrap()
+                                                        .debugger_state
+                                                        .reg_value_display = RegValueDisplay::Binary
+                                                };
+                                                if ui
+                                                    .add(Button::selectable(
+                                                        self.debug
+                                                            .as_ref()
+                                                            .unwrap()
+                                                            .debugger_state
+                                                            .reg_value_display
+                                                            == RegValueDisplay::Decimal,
+                                                        "Dec",
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    self.debug
+                                                        .as_mut()
+                                                        .unwrap()
+                                                        .debugger_state
+                                                        .reg_value_display =
+                                                        RegValueDisplay::Decimal
+                                                };
+                                            });
+
+                                            let shared_state = self
+                                                .debug
+                                                .as_ref()
+                                                .unwrap()
+                                                .shared_state
+                                                .read()
+                                                .unwrap();
+                                            egui::Grid::new("grid_registers").show(ui, |ui| {
+                                                ui.label("a");
+                                                ui.label(self.val_u8(shared_state.register.a));
+                                                ui.end_row();
+
+                                                ui.label("b");
+                                                ui.label(self.val_u8(shared_state.register.b));
+                                                ui.end_row();
+                                                ui.label("c");
+                                                ui.label(self.val_u8(shared_state.register.c));
+                                                ui.end_row();
+                                                ui.label("bc");
+                                                ui.label(self.val_u16(shared_state.register.bc()));
+                                                ui.end_row();
+
+                                                ui.label("d");
+                                                ui.label(self.val_u8(shared_state.register.d));
+                                                ui.end_row();
+                                                ui.label("e");
+                                                ui.label(self.val_u8(shared_state.register.e));
+                                                ui.end_row();
+                                                ui.label("de");
+                                                ui.label(self.val_u16(shared_state.register.de()));
+                                                ui.end_row();
+
+                                                ui.label("h");
+                                                ui.label(self.val_u8(shared_state.register.h));
+                                                ui.end_row();
+                                                ui.label("l");
+                                                ui.label(self.val_u8(shared_state.register.l));
+                                                ui.end_row();
+                                                ui.label("hl");
+                                                ui.label(self.val_u16(shared_state.register.hl()));
+                                                ui.end_row();
+
+                                                ui.label("sp");
+                                                ui.label(self.val_u16(shared_state.register.sp));
+                                                ui.end_row();
+
+                                                ui.label("pc");
+                                                ui.label(self.val_u16(shared_state.register.pc));
+                                                ui.end_row();
+
+                                                ui.label("z");
+                                                ui.label(flag(shared_state.register.f, sm83::Z));
+                                                ui.end_row();
+
+                                                ui.label("n");
+                                                ui.label(flag(shared_state.register.f, sm83::N));
+                                                ui.end_row();
+
+                                                ui.label("h");
+                                                ui.label(flag(shared_state.register.f, sm83::H));
+                                                ui.end_row();
+
+                                                ui.label("c");
+                                                ui.label(flag(shared_state.register.f, sm83::C));
+                                                ui.end_row();
+                                            });
+                                        });
+                                    });
+                            });
                         });
                     });
-                });
+            }
         });
     }
 }

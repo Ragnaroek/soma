@@ -91,10 +91,6 @@ impl<'a, T> DMG<'a, T> {
                 for _tile_row in 0..8 {
                     for _tile_col in 0..2 {
                         let col = self.mc.read(tile_i);
-                        if col != 0 {
-                            panic!("col = {}", col);
-                        }
-
                         for p in 0..4 {
                             let pixel = (col & (0b11 << p * 2)) >> p * 2;
                             match pixel {
