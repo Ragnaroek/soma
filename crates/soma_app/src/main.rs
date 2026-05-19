@@ -69,7 +69,7 @@ fn main() -> eframe::Result {
         };
 
         let rom = ROM::new(&rom_data);
-        let mut dmg = DMG::init(rom, timer);
+        let mut dmg = DMG::init(rom, timer, debug_print, debug_print_str);
 
         {
             let mut debug_state_init = shared_state_emu.write().unwrap();
@@ -125,4 +125,12 @@ fn step_control(debug_control: &Arc<RwLock<DebuggerSharedState>>) -> StepControl
 
 fn std_now(ref_time: &Instant) -> f64 {
     ref_time.elapsed().as_millis_f64()
+}
+
+fn debug_print(v: u8) {
+    println!("debug = 0x{:x}", v)
+}
+
+fn debug_print_str(str: &str) {
+    println!("{}", str)
 }
