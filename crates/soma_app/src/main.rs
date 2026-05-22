@@ -48,7 +48,10 @@ fn main() -> eframe::Result {
     } else {
         StepControl::Run
     };
-    let shared_state = Arc::new(RwLock::new(DebuggerSharedState::new(step_control_init)));
+
+    let shared_state = Arc::new(RwLock::new(DebuggerSharedState::new(
+        StepControl::BreakAt(0x171), /*step_control_init*/
+    )));
     let shared_state_emu = shared_state.clone();
 
     //let dim = [dmg::RESOLUTION_X as f32, dmg::RESOLUTION_Y as f32];
@@ -56,7 +59,7 @@ fn main() -> eframe::Result {
         let debug_app_rom = ROM::new(&debug_rom_data);
         (
             Some(Debug::new(shared_state, debug_app_rom)),
-            [850.0, 700.0],
+            [1000.0, 850.0],
         )
     } else {
         (None, [256.0 + 20.0, 256.0 + 20.0]) // TODO get rid of the border in non-debug mode!
@@ -69,18 +72,20 @@ fn main() -> eframe::Result {
         };
 
         let rom = ROM::new(&rom_data);
-        let mut dmg = DMG::init(rom, timer, debug_print, debug_print_str);
+        let mut dmg = DMG::init(rom, timer, debug_print);
 
-        {
-            let mut debug_state_init = shared_state_emu.write().unwrap();
-            debug_state_init.register = dmg.sm83.reg.clone();
-        }
-
+        update_shared_state(&shared_state_emu, &dmg);
         loop {
             let step_control = step_control(&shared_state_emu);
             if step_control == StepControl::Break {
                 sleep(30).await;
                 continue;
+            }
+            if let StepControl::BreakAt(break_at) = step_control {
+                if dmg.sm83.reg.pc == break_at {
+                    sleep(30).await;
+                    continue;
+                }
             }
             let r = dmg.step();
             if step_control == StepControl::NextStep {
@@ -96,13 +101,21 @@ fn main() -> eframe::Result {
                 fb.needs_update = true; // TODO determine the 'needs_update' in the step() function
 
                 // update debug info
-                let mut shared_state = shared_state_emu.write().unwrap();
-                shared_state.register = dmg.sm83.reg.clone();
+                update_shared_state(&shared_state_emu, &dmg);
             } else {
                 println!("ERR: {}", r.err().unwrap());
             }
         }
     });
+
+    fn update_shared_state<T>(shared_state_emu: &Arc<RwLock<DebuggerSharedState>>, dmg: &DMG<T>) {
+        let mut shared_state = shared_state_emu.write().unwrap();
+        shared_state.register = dmg.sm83.reg.clone();
+
+        for i in 0..(32 * 32) {
+            shared_state.tile_map_1[i] = dmg.mc.read(0x9800 + i as u16);
+        }
+    }
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -127,10 +140,6 @@ fn std_now(ref_time: &Instant) -> f64 {
     ref_time.elapsed().as_millis_f64()
 }
 
-fn debug_print(v: u8) {
-    println!("debug = 0x{:x}", v)
-}
-
-fn debug_print_str(str: &str) {
-    println!("{}", str)
+fn debug_print(txt: &str, v: u16) {
+    println!("{} = 0x{:x}", txt, v)
 }

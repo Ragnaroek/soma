@@ -11,9 +11,8 @@ pub const RESOLUTION_Y: usize = 144;
 pub struct DMG<'a, T> {
     time: Time<T>,
     pub sm83: SM83,
-    mc: MemoryController<'a>,
-    debug: fn(u8),
-    debug_str: fn(&str),
+    pub mc: MemoryController<'a>,
+    debug: fn(&str, u16),
 }
 
 const CPU_FREQ: f64 = 4194304.0; // Hz
@@ -41,7 +40,7 @@ pub struct StepResult {
 
 impl<'a, T> DMG<'a, T> {
     /// Initialise a original gameboy system (DMG)
-    pub fn init(rom: ROM<'a>, time: Time<T>, debug: fn(u8), debug_str: fn(&str)) -> DMG<'a, T> {
+    pub fn init(rom: ROM<'a>, time: Time<T>, debug: fn(&str, u16)) -> DMG<'a, T> {
         let mut sm83 = SM83::init();
         sm83.set_pc(0x100);
 
@@ -56,7 +55,6 @@ impl<'a, T> DMG<'a, T> {
             sm83,
             mc,
             debug,
-            debug_str,
         }
     }
 
@@ -74,7 +72,7 @@ impl<'a, T> DMG<'a, T> {
         let at_scanline = (now % VBLANK_SCANLINE_MILLIS) as u8;
         self.mc.write(0xFF44, at_scanline);
         Ok(StepResult {
-            wait_time_millis: 14, // TODO compute wait time here for next step
+            wait_time_millis: 1, //14, // TODO compute wait time here for next step
             instr,
         })
     }
@@ -88,16 +86,19 @@ impl<'a, T> DMG<'a, T> {
         // how the window is slided
         for y in 0..32usize {
             for x in 0..32usize {
+                if x == 0 {
+                    (self.debug)("tile_start", 0);
+                }
                 // upper left corner of tile
                 let mut dst = (y * 8 * 3 * 32 * 8) + (x * 8 * 3);
 
                 let tile_map_addr = 0x9800 + x as u16 * 32 + y as u16;
                 let tile_map_ix = self.mc.read(tile_map_addr) as u16;
-                let tile_start = 0x9000 + tile_map_ix * 16;
-
-                if x == 0 && y == 0 {
-                    (self.debug_str)("tile_start");
+                if x == 0 {
+                    (self.debug)("map_addr", tile_map_addr);
+                    (self.debug)("tile_ix", tile_map_ix);
                 }
+                let tile_start = 0x9000 + tile_map_ix * 16;
 
                 let mut tile_i = tile_start;
                 for _tile_row in 0..8 {
@@ -148,9 +149,8 @@ impl<'a, T> DMG<'a, T> {
 
                     dst += 31 * 8 * 3;
                 }
-
-                if x == 0 && y == 0 {
-                    (self.debug_str)("tile_end");
+                if x == 0 {
+                    (self.debug)("tile_end", 0);
                 }
             }
         }
