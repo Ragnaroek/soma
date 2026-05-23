@@ -99,7 +99,7 @@ impl<'a, T> DMG<'a, T> {
                 // upper left corner of tile
                 let mut dst = (y * 8 * 3 * 32 * 8) + (x * 8 * 3);
 
-                let tile_map_addr = 0x9800 + x as u16 * 32 + y as u16;
+                let tile_map_addr = 0x9800 + y as u16 * 32 + x as u16;
                 let tile_map_ix = self.mc.read(tile_map_addr) as u16;
                 let tile_start = 0x9000 + tile_map_ix * 16;
 
