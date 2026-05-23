@@ -212,6 +212,9 @@ impl<'a> eframe::App for SomaApp<'a> {
                             ui.load_texture("frame", image, egui::TextureOptions::default());
                         ui.image(&texture_handle);
 
+                        // TODO reset needs_update (rename to dirty) if the fb was converted and
+                        // cache the image.
+
                         ui.request_repaint();
                     }
 

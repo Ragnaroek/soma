@@ -78,12 +78,12 @@ fn main() -> eframe::Result {
         loop {
             let step_control = step_control(&shared_state_emu);
             if step_control == StepControl::Break {
-                sleep(30).await;
+                sleep(30.0).await;
                 continue;
             }
             if let StepControl::BreakAt(break_at) = step_control {
                 if dmg.sm83.reg.pc == break_at {
-                    sleep(30).await;
+                    sleep(30.0).await;
                     continue;
                 }
             }
@@ -93,12 +93,16 @@ fn main() -> eframe::Result {
                 debug_control.step_control = StepControl::Break;
             }
             if let Ok(step_result) = r {
-                sleep(step_result.wait_time_millis).await;
+                if step_result.wait_time_millis != 0.0 {
+                    sleep(step_result.wait_time_millis).await;
+                }
 
-                // update framebuffer
-                let mut fb = frame_buffer_emu.write().unwrap();
-                dmg.fb_rgb(&mut fb.buffer);
-                fb.needs_update = true; // TODO determine the 'needs_update' in the step() function
+                if step_result.fb_refresh {
+                    // update framebuffer
+                    let mut fb = frame_buffer_emu.write().unwrap();
+                    dmg.fb_rgb(&mut fb.buffer);
+                    fb.needs_update = true;
+                }
 
                 // update debug info
                 update_shared_state(&shared_state_emu, &dmg);

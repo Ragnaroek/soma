@@ -35,8 +35,8 @@ where
 
 #[cfg(any(feature = "desktop"))]
 /// task sleep that works with all the different backends
-pub async fn sleep(millis: u32) {
-    tokio::time::sleep(std::time::Duration::from_millis(millis as u64)).await;
+pub async fn sleep(millis: f64) {
+    tokio::time::sleep(std::time::Duration::from_micros((millis * 1000.0) as u64)).await;
 }
 
 #[cfg(feature = "web")]
