@@ -1,8 +1,8 @@
-run-debug:
-    cargo run --features desktop -- ../../testdata/hello_world.gb --debugger
+run-debug FILE:
+    cargo run --features desktop -- {{ FILE }} --debugger
 
-run:
-	cargo run --features desktop -- ../../testdata/hello_world.gb #tile_test.gb
+run FILE:
+	cargo run --features desktop -- {{ FILE }}
 
 test:
     cargo test
