@@ -288,6 +288,11 @@ fn exec_ld_to_a_from_deref_de(
     Ok(())
 }
 
+fn exec_nop(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), &'static str> {
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_ld_to_de_from_immediate(
     sm83: &mut SM83,
     mc: &mut MemoryController,
@@ -398,7 +403,7 @@ fn exec_or_a_c(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'stat
 }
 
 pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
-    /*0x00*/ exec_invalid,
+    /*0x00*/ exec_nop,
     /*0x01*/ exec_ld_to_bc_from_immediate,
     /*0x02*/ exec_invalid,
     /*0x03*/ exec_invalid,

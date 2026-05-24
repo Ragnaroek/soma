@@ -49,9 +49,7 @@ fn main() -> eframe::Result {
         StepControl::Run
     };
 
-    let shared_state = Arc::new(RwLock::new(DebuggerSharedState::new(
-        StepControl::BreakAt(0x171), /*step_control_init*/
-    )));
+    let shared_state = Arc::new(RwLock::new(DebuggerSharedState::new(step_control_init)));
     let shared_state_emu = shared_state.clone();
 
     //let dim = [dmg::RESOLUTION_X as f32, dmg::RESOLUTION_Y as f32];

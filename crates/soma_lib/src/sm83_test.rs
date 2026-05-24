@@ -23,6 +23,19 @@ fn test_err() -> Result<(), &'static str> {
 }
 
 #[test]
+fn test_nop() -> Result<(), &'static str> {
+    let cases = [([psy::arch::sm83::INSTR_NOP.op_code])];
+
+    for mem in cases {
+        let rom = ROM::new(&mem);
+        let (sm83, _) = exec(IO::init(), Register::zero(), rom)?;
+        assert_eq!(sm83.pc(), 1, "nop");
+        assert_equal_v_regs(&sm83.reg, &Register::zero(), "nop");
+    }
+    Ok(())
+}
+
+#[test]
 fn test_jp() -> Result<(), &'static str> {
     let cases = [(
         "(jp 0x150)",
