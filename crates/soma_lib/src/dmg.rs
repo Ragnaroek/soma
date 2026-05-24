@@ -10,7 +10,7 @@ pub const RESOLUTION_Y: usize = 144;
 
 pub struct DMG<'a, T> {
     time: Time<T>,
-    pub last_now: f64,
+    pub last_refresh_at: f64,
 
     pub sm83: SM83,
     pub mc: MemoryController<'a>,
@@ -54,7 +54,7 @@ impl<'a, T> DMG<'a, T> {
             rom: Some(rom),
         };
         DMG {
-            last_now: 0.0,
+            last_refresh_at: 0.0,
             time,
             sm83,
             mc,
@@ -77,8 +77,12 @@ impl<'a, T> DMG<'a, T> {
         let at_scanline = (now % VBLANK_SCANLINE_MILLIS) as u8;
         self.mc.write(0xFF44, at_scanline);
 
-        let fb_refresh = (now - self.last_now) > 14.0;
-        self.last_now = now;
+        let fb_refresh = if (now - self.last_refresh_at) > 14.0 {
+            self.last_refresh_at = now;
+            true
+        } else {
+            false
+        };
 
         Ok(StepResult {
             wait_time_millis: 0.0, //14, // TODO compute wait time here for next step

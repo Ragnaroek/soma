@@ -2,7 +2,7 @@ run-debug:
     cargo run --features desktop -- ../../testdata/hello_world.gb --debugger
 
 run:
-	cargo run --features desktop -- ../../testdata/tile_test.gb
+	cargo run --features desktop -- ../../testdata/hello_world.gb #tile_test.gb
 
 test:
     cargo test
