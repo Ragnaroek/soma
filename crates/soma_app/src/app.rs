@@ -629,9 +629,14 @@ fn instr_row(
 
     let instr_text = if let Some(instr) = may_instr {
         let loc_u = loc as usize;
-        &instr.text(Some(&rom.data[loc_u..(loc_u + 3)]))
+        let text = instr.text(Some(&rom.data[loc_u..(loc_u + 3)]));
+        if instr.op_code == psy::arch::sm83::INSTR_INVALID.op_code {
+            format!("{} op_code=0x{:x}", text, rom.data[loc_u])
+        } else {
+            text
+        }
     } else {
-        "???"
+        "???".to_string()
     };
 
     ui.label(instr_text);
