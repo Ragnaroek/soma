@@ -46,6 +46,7 @@ impl<'a, T> DMG<'a, T> {
     pub fn init(rom: ROM<'a>, time: Time<T>, debug: fn(&str, u16)) -> DMG<'a, T> {
         let mut sm83 = SM83::init();
         sm83.set_pc(0x100);
+        sm83.reg.sp = 0xFFFE;
 
         // allocate the DMG memory
         let mc = MemoryController {

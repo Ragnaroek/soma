@@ -164,11 +164,6 @@ impl RegBuilder {
         self
     }
 
-    pub fn pc(mut self, v: u16) -> RegBuilder {
-        self.reg.pc = v;
-        self
-    }
-
     pub fn bc(mut self, v: u16) -> RegBuilder {
         self.reg.set_bc(v);
         self
@@ -181,6 +176,16 @@ impl RegBuilder {
 
     pub fn hl(mut self, v: u16) -> RegBuilder {
         self.reg.set_hl(v);
+        self
+    }
+
+    pub fn pc(mut self, v: u16) -> RegBuilder {
+        self.reg.pc = v;
+        self
+    }
+
+    pub fn sp(mut self, v: u16) -> RegBuilder {
+        self.reg.sp = v;
         self
     }
 }
@@ -212,6 +217,10 @@ impl SM83 {
 
     pub fn inc_pc(&mut self, inc: u16) {
         self.reg.pc += inc;
+    }
+
+    pub fn dec_sp(&mut self, dec: u16) {
+        self.reg.sp -= dec;
     }
 
     pub fn pc(&self) -> u16 {
@@ -399,6 +408,19 @@ fn exec_or_a_c(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'stat
     sm83.reg.a = sm83.reg.a | sm83.reg.c;
     sm83.reg.set_flag(Z, (sm83.reg.a == 0) as u8);
     sm83.inc_pc(1);
+    Ok(())
+}
+
+fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+    let addr = mc.read_u16(sm83.pc() + 1);
+
+    sm83.dec_sp(1);
+    let pc = (sm83.pc() + 1).to_le_bytes();
+    mc.write(sm83.reg.sp, pc[1]); // MSB first, as stack is _decreased_
+    sm83.dec_sp(1);
+    mc.write(sm83.reg.sp, pc[0]);
+
+    sm83.set_pc(addr);
     Ok(())
 }
 
@@ -608,7 +630,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xCA*/ exec_invalid,
     /*0xCB*/ exec_invalid,
     /*0xCC*/ exec_invalid,
-    /*0xCD*/ exec_invalid,
+    /*0xCD*/ exec_call,
     /*0xCE*/ exec_invalid,
     /*0xCF*/ exec_invalid,
     /*0xD0*/ exec_invalid,

@@ -451,6 +451,35 @@ fn test_or() -> Result<(), &'static str> {
     Ok(())
 }
 
+#[test]
+fn test_call() -> Result<(), &'static str> {
+    let mut mem = [psy::arch::sm83::INSTR_INVALID.op_code; 0x166 + 4];
+    mem[0x167] = psy::arch::sm83::INSTR_CALL.op_code;
+    mem[0x168] = 0x50;
+    mem[0x169] = 0x01;
+    let cases = [("(call 0x150)", mem, 0x167, 0x150)];
+
+    for (exp, mem, pc_start, pc_after) in cases {
+        let rom = ROM::new(&mem);
+        let (sm83, mc) = exec(
+            IO::init(),
+            RegBuilder::new().pc(pc_start).sp(0xFFFE).reg(),
+            rom,
+        )?;
+        assert_eq!(
+            sm83.pc(),
+            pc_after,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            pc_after,
+            sm83.pc()
+        );
+        assert_eq!(sm83.reg.sp, 0xFFFC);
+        assert_eq!(mc.read(0xFFFC), 0x68);
+        assert_eq!(mc.read(0xFFFD), 0x01);
+    }
+    Ok(())
+}
 // helper
 
 /// conly compares the value register a to l, without pc and sp.
