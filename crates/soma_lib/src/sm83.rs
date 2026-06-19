@@ -223,6 +223,10 @@ impl SM83 {
         self.reg.sp -= dec;
     }
 
+    pub fn inc_sp(&mut self, inc: u16) {
+        self.reg.sp += inc;
+    }
+
     pub fn pc(&self) -> u16 {
         self.reg.pc
     }
@@ -420,6 +424,17 @@ fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static 
     sm83.dec_sp(1);
     mc.write(sm83.reg.sp, pc[0]);
 
+    sm83.set_pc(addr);
+    Ok(())
+}
+
+fn exec_ret(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+    let lsb = mc.read(sm83.reg.sp);
+    sm83.inc_sp(1);
+    let msb = mc.read(sm83.reg.sp);
+    sm83.inc_sp(1);
+
+    let addr = u16::from_le_bytes([lsb, msb]);
     sm83.set_pc(addr);
     Ok(())
 }
@@ -626,7 +641,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xC6*/ exec_invalid,
     /*0xC7*/ exec_invalid,
     /*0xC8*/ exec_invalid,
-    /*0xC9*/ exec_invalid,
+    /*0xC9*/ exec_ret,
     /*0xCA*/ exec_invalid,
     /*0xCB*/ exec_invalid,
     /*0xCC*/ exec_invalid,

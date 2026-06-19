@@ -480,6 +480,47 @@ fn test_call() -> Result<(), &'static str> {
     }
     Ok(())
 }
+
+#[test]
+fn test_ret() -> Result<(), &'static str> {
+    let cases = [(
+        "(ret)",
+        [psy::arch::sm83::INSTR_RET.op_code],
+        0xFFFC,
+        0xFFFE,
+        0,
+        0x168,
+        0x68,
+        0x01,
+    )];
+
+    for (exp, mem, sp_start, sp_after, pc_start, pc_after, sp_low, sp_high) in cases {
+        let rom = ROM::new(&mem);
+        let mut mc = MemoryController {
+            io: IO::init(),
+            rom: Some(rom),
+            vram: [0; 8192],
+        };
+        mc.write(sp_start, sp_low);
+        mc.write(sp_start + 1, sp_high);
+        let (sm83, _) = exec_with_mc(mc, RegBuilder::new().pc(pc_start).sp(sp_start).reg())?;
+        assert_eq!(
+            sm83.reg.sp, sp_after,
+            "{}, want sp 0x{:x}, got 0x{:x}",
+            exp, sp_after, sm83.reg.sp
+        );
+        assert_eq!(
+            sm83.pc(),
+            pc_after,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            pc_after,
+            sm83.pc()
+        );
+    }
+    Ok(())
+}
+
 // helper
 
 /// conly compares the value register a to l, without pc and sp.
@@ -495,11 +536,18 @@ fn assert_equal_v_regs(l: &Register, r: &Register, exp: &str) {
 }
 
 fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), &'static str> {
-    let mut mc = MemoryController {
+    let mc = MemoryController {
         io: io,
         rom: Some(rom),
         vram: [0; 8192],
     };
+    exec_with_mc(mc, reg)
+}
+
+fn exec_with_mc<'a>(
+    mut mc: MemoryController<'a>,
+    reg: Register,
+) -> Result<(SM83, MemoryController<'a>), &'static str> {
     let mut sm83 = SM83::init();
     sm83.reg = reg;
     sm83.execute(&mut mc)?;

@@ -29,7 +29,6 @@ impl IO {
 
     /// addrs = absolute address. Must be in IO address space.
     pub fn write(&mut self, addr: u16, v: u8) {
-        //panic!("mc write = {:x}, 0={:x}", addr, v);
         let me = &mut self.mem_effect[(addr - 0xFF00) as usize];
         me.value = v;
         (me.effect)();
