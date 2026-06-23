@@ -326,6 +326,17 @@ impl<'a> eframe::App for SomaApp<'a> {
                                                             shared_state.step_control =
                                                                 StepControl::NextStep;
                                                         }
+                                                        if ui.button("Run").clicked() {
+                                                            let mut shared_state = self
+                                                                .debug
+                                                                .as_ref()
+                                                                .unwrap()
+                                                                .shared_state
+                                                                .write()
+                                                                .unwrap();
+                                                            shared_state.step_control =
+                                                                StepControl::Run;
+                                                        }
                                                     });
 
                                                     egui::Grid::new("grid_instructions")
