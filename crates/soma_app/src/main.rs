@@ -1,9 +1,12 @@
 #![feature(duration_millis_float)]
+#![feature(str_as_str)]
 
 mod app;
+mod gdb;
 mod util;
 
 use clap::Parser;
+
 use std::sync::{Arc, RwLock};
 use std::{fs, time::Instant};
 
@@ -13,6 +16,7 @@ use libsoma::{
 };
 
 use crate::app::{Debug, DebuggerSharedState, FrameBuffer, SomaApp, StepControl};
+use crate::gdb::gdb_serve;
 use crate::util::{sleep, spawn_async};
 
 #[derive(Parser)]
@@ -62,6 +66,10 @@ fn main() -> eframe::Result {
     } else {
         (None, [256.0 + 20.0, 256.0 + 20.0]) // TODO get rid of the border in non-debug mode!
     };
+
+    spawn_async(async {
+        gdb_serve().expect("gbd serve");
+    });
 
     spawn_async(async move {
         let timer = Time {
