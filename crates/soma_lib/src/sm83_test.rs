@@ -475,8 +475,18 @@ fn test_call() -> Result<(), &'static str> {
             sm83.pc()
         );
         assert_eq!(sm83.reg.sp, 0xFFFC);
-        assert_eq!(mc.read(0xFFFC), 0x68);
-        assert_eq!(mc.read(0xFFFD), 0x01);
+        assert_eq!(
+            mc.read(0xFFFC),
+            0x6A,
+            "got 0x{:x}, want 0x6A",
+            mc.read(0xFFFC)
+        );
+        assert_eq!(
+            mc.read(0xFFFD),
+            0x01,
+            "got 0x{:x}, want 0x01",
+            mc.read(0xFFFD)
+        );
     }
     Ok(())
 }

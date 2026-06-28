@@ -418,7 +418,7 @@ fn exec_or_a_c(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'stat
 fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
     let addr = mc.read_u16(sm83.pc() + 1);
 
-    let pc = (sm83.pc() + 2).to_le_bytes();
+    let pc = (sm83.pc() + 3).to_le_bytes();
     sm83.dec_sp(1);
     mc.write(sm83.reg.sp, pc[1]); // MSB first, as stack is _decreased_
     sm83.dec_sp(1);
