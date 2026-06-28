@@ -16,7 +16,7 @@ enum Command {
     /// Read register x
     P,
     /// Read memory
-    M,
+    M(MemoryRange),
     QSupported(GDBFeatures),
     /// query current thread
     QC,
@@ -34,6 +34,12 @@ struct GDBFeatures {}
 
 #[derive(Debug, PartialEq)]
 struct HParams {}
+
+#[derive(Debug, PartialEq)]
+struct MemoryRange {
+    addr: usize,
+    length: usize,
+}
 
 struct Message {
     content: String,
@@ -136,7 +142,9 @@ fn handle_next_command(input: &str) -> Result<(Reply, &str), String> {
             Command::G => {
                 Message::new_ack("+$0000000000000000000000000000000000000000000000000000#c0")
             }
-            Command::M => Message::new_ack("+$00#00"),
+            Command::M(range) => {
+                Message::new_ack(&format!("+${}#00", "0".repeat(range.length * 2)))
+            }
             Command::P => Message::new_ack("+$00000000#80"),
             _ => return Err(format!("unkown command: {:?}", cmd).to_string()),
         };
@@ -176,7 +184,11 @@ fn parse_next_command(input: &str) -> Result<(Option<Command>, &str), String> {
     } else if command.starts_with("p") {
         Command::P // TODO parse register number
     } else if command.starts_with("m") {
-        Command::M // TODO parse range
+        if let Some(mem_range) = command.get(1..) {
+            Command::M(parse_memory_range(mem_range)?)
+        } else {
+            return Err(format!("m: invalid memory range: {}", command));
+        }
     } else if command == "g" {
         Command::G
     } else if command.starts_with('H') {
@@ -210,4 +222,17 @@ fn parse_gdb_features(param_str: &str) -> Result<GDBFeatures, String> {
 fn parse_h_params(h_command: &str) -> Result<HParams, String> {
     // TODO actually parse the HParams
     Ok(HParams {})
+}
+
+fn parse_memory_range(input: &str) -> Result<MemoryRange, String> {
+    if let Some((addr_str, len_str)) = input.split_once(',') {
+        let addr = usize::from_str_radix(addr_str, 16).map_err(|e| e.to_string())?;
+        let len = usize::from_str_radix(len_str, 16).map_err(|e| e.to_string())?;
+        Ok(MemoryRange {
+            addr: addr,
+            length: len,
+        })
+    } else {
+        Err(format!("invalid memory range: {}", input))
+    }
 }
