@@ -15,6 +15,8 @@ enum Command {
     G,
     /// Read register x
     P,
+    /// Read memory
+    M,
     QSupported(GDBFeatures),
     /// query current thread
     QC,
@@ -77,7 +79,7 @@ pub fn gdb_serve() -> Result<(), String> {
             Ok(n) => {
                 let cmd = String::from_utf8_lossy(&buf[..n]);
                 if pending_command {
-                    print!("<- {} ", cmd);
+                    print!("-> {} ", cmd);
                     match cmd.as_str() {
                         "+" => {
                             println!("(ack)")
@@ -91,13 +93,17 @@ pub fn gdb_serve() -> Result<(), String> {
                     }
                     pending_command = false;
                 } else {
-                    println!("<- {}", cmd);
-                    let reply = handle_command(&cmd)?;
-                    if let Reply::Message(message) = reply {
-                        println!("-> {}", message.content);
-                        stream.write_all(message.content.as_bytes()).expect("write");
-                        stream.flush().expect("flush");
-                        pending_command = message.needs_ack;
+                    println!("-> {}", cmd);
+                    let mut remaining_cmd: &str = &cmd;
+                    while !remaining_cmd.is_empty() {
+                        let (reply, next_remaining) = handle_next_command(remaining_cmd)?;
+                        remaining_cmd = next_remaining;
+                        if let Reply::Message(message) = reply {
+                            println!("<- {}", message.content);
+                            stream.write_all(message.content.as_bytes()).expect("write");
+                            stream.flush().expect("flush");
+                            pending_command = message.needs_ack;
+                        }
                     }
                 }
             }
@@ -110,8 +116,8 @@ pub fn gdb_serve() -> Result<(), String> {
     Ok(())
 }
 
-fn handle_command(input: &str) -> Result<Reply, String> {
-    let may_cmd = parse_command(input)?;
+fn handle_next_command(input: &str) -> Result<(Reply, &str), String> {
+    let (may_cmd, remaining_input) = parse_next_command(input)?;
 
     if let Some(cmd) = may_cmd {
         let message = match cmd {
@@ -121,33 +127,34 @@ fn handle_command(input: &str) -> Result<Reply, String> {
                 Message::new_ack("$qSupported:swbreak+;vContSupported+;QThreadEvents+#45")
             }
             Command::QC => Message::new_ack("+$QC1#c5"),
-            Command::QAttached => Message::new_ack("+$1#"), // process already exists, gdb attached to it
-            Command::QTStatus => Message::new_ack("+$#00"), // no tracing going on
+            Command::QAttached => Message::new_ack("+$1#31"), // process already exists, gdb attached to it
+            Command::QTStatus => Message::new_ack("+$#00"),   // no tracing going on
             Command::QFThreadInfo => Message::new_ack("+$l#6c"), // no thread support
             Command::VContQ => Message::new_ack("+$vcont;c;s;t#25"),
             Command::VMustReplyEmpty => Message::new_ack("+$#00"),
             Command::H(_) => Message::new_ack("+$OK#9a"), // only one thread in soma, nothing to prepare. just ack
-            Command::G => Message::new_ack(
-                "+$0000000000000000000000000000000000000000000000000000000000000000#00",
-            ),
+            Command::G => {
+                Message::new_ack("+$0000000000000000000000000000000000000000000000000000#c0")
+            }
+            Command::M => Message::new_ack("+$00#00"),
             Command::P => Message::new_ack("+$00000000#80"),
             _ => return Err(format!("unkown command: {:?}", cmd).to_string()),
         };
-        Ok(Reply::Message(message))
+        Ok((Reply::Message(message), remaining_input))
     } else {
-        Ok(Reply::Nothing)
+        Ok((Reply::Nothing, remaining_input))
     }
 }
 
-fn parse_command(input: &str) -> Result<Option<Command>, String> {
-    if input == "+" {
-        return Ok(Some(Command::Plus));
+fn parse_next_command(input: &str) -> Result<(Option<Command>, &str), String> {
+    if input.starts_with("+") {
+        return Ok((Some(Command::Plus), input.get(1..).unwrap_or("")));
     }
 
     let may_end_ix = input.find('#');
     if may_end_ix.is_none() {
         // command not yet complete, wait for next try with more input
-        return Ok(None);
+        return Ok((None, input));
     }
     let end_ix = may_end_ix.unwrap();
 
@@ -168,6 +175,8 @@ fn parse_command(input: &str) -> Result<Option<Command>, String> {
         Command::StopQuery
     } else if command.starts_with("p") {
         Command::P // TODO parse register number
+    } else if command.starts_with("m") {
+        Command::M // TODO parse range
     } else if command == "g" {
         Command::G
     } else if command.starts_with('H') {
@@ -190,7 +199,7 @@ fn parse_command(input: &str) -> Result<Option<Command>, String> {
         Command::Unknown(command.to_string())
     };
 
-    Ok(Some(cmd))
+    Ok((Some(cmd), input.get(end_ix..).unwrap_or("")))
 }
 
 fn parse_gdb_features(param_str: &str) -> Result<GDBFeatures, String> {
