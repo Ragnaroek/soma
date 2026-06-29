@@ -41,31 +41,47 @@ struct MemoryRange {
     length: usize,
 }
 
-struct Message {
+struct Packet {
     content: String,
-    needs_ack: bool,
+    /// This message needs to prepend the ack first
+    prepend_ack: bool,
 }
 
-impl Message {
-    /// A regular message that is acknowledged
-    fn new_ack(content: &str) -> Message {
-        Message {
+impl Packet {
+    /// A regular message that prepends a ack (+) in the reply.
+    fn ack(content: &str) -> Self {
+        Self {
             content: content.to_string(),
-            needs_ack: true,
+            prepend_ack: true,
         }
     }
 
-    fn new_no_ack(content: &str) -> Message {
-        Message {
+    fn nack(content: &str) -> Self {
+        Self {
             content: content.to_string(),
-            needs_ack: false,
+            prepend_ack: false,
         }
+    }
+
+    /// Constructs the packet string in the format that it can be send
+    /// back to gdb: (+)$...#xx
+    fn packet_string(&self) -> String {
+        let ack = if self.prepend_ack { "+" } else { "" };
+
+        let mut checksum: u8 = 0;
+        for b in self.content.bytes() {
+            checksum = checksum.wrapping_add(b);
+        }
+
+        format!("{}${}#{:02x}", ack, self.content, checksum)
     }
 }
 
 enum Reply {
     Nothing,
-    Message(Message),
+    Packet(Packet),
+    /// Special reply at the beginning of the protocol
+    Plus,
 }
 
 pub fn gdb_serve() -> Result<(), String> {
@@ -104,11 +120,20 @@ pub fn gdb_serve() -> Result<(), String> {
                     while !remaining_cmd.is_empty() {
                         let (reply, next_remaining) = handle_next_command(remaining_cmd)?;
                         remaining_cmd = next_remaining;
-                        if let Reply::Message(message) = reply {
-                            println!("<- {}", message.content);
-                            stream.write_all(message.content.as_bytes()).expect("write");
-                            stream.flush().expect("flush");
-                            pending_command = message.needs_ack;
+                        match reply {
+                            Reply::Packet(packet) => {
+                                let packet_str = packet.packet_string();
+                                println!("<- {}", packet_str);
+                                stream.write_all(packet_str.as_bytes()).expect("write");
+                                stream.flush().expect("flush");
+                                pending_command = true;
+                            }
+                            Reply::Plus => {
+                                stream.write_all("+".as_bytes()).expect("write");
+                                stream.flush().expect("flush");
+                                pending_command = false;
+                            }
+                            Reply::Nothing => {}
                         }
                     }
                 }
@@ -126,29 +151,28 @@ fn handle_next_command(input: &str) -> Result<(Reply, &str), String> {
     let (may_cmd, remaining_input) = parse_next_command(input)?;
 
     if let Some(cmd) = may_cmd {
-        let message = match cmd {
-            Command::Plus => Message::new_no_ack("+"),
-            Command::StopQuery => Message::new_ack("+$S00#b3"),
+        let packet = match cmd {
+            Command::Plus => return Ok((Reply::Plus, "")),
+            Command::StopQuery => Packet::ack("S00"),
             Command::QSupported(_) => {
-                Message::new_ack("$qSupported:swbreak+;vContSupported+;QThreadEvents+#45")
+                Packet::nack("qSupported:swbreak+;vContSupported+;QThreadEvents+")
             }
-            Command::QC => Message::new_ack("+$QC1#c5"),
-            Command::QAttached => Message::new_ack("+$1#31"), // process already exists, gdb attached to it
-            Command::QTStatus => Message::new_ack("+$#00"),   // no tracing going on
-            Command::QFThreadInfo => Message::new_ack("+$l#6c"), // no thread support
-            Command::VContQ => Message::new_ack("+$vcont;c;s;t#25"),
-            Command::VMustReplyEmpty => Message::new_ack("+$#00"),
-            Command::H(_) => Message::new_ack("+$OK#9a"), // only one thread in soma, nothing to prepare. just ack
+            Command::QC => Packet::ack("QC1"),
+            Command::QAttached => Packet::ack("1"), //Message::new_ack("+$1#31"), // process already exists, gdb attached to it
+            Command::QTStatus => Packet::ack(""), //Message::new_ack("+$#00"), // no tracing going on
+            Command::QFThreadInfo => Packet::ack("l"), // Message::new_ack("+$l#6c"), // no thread support
+            Command::VContQ => Packet::ack("vcont;c;s;t"),
+            Command::VMustReplyEmpty => Packet::ack(""),
+            Command::H(_) => Packet::ack("OK"), //Message::new_ack("+$OK#9a"), // only one thread in soma, nothing to prepare. just ack
             Command::G => {
-                Message::new_ack("+$0000000000000000000000000000000000000000000000000000#c0")
+                Packet::ack("0000000000000000000000000000000000000000000000000000")
+                //Message::new_ack("+$0000000000000000000000000000000000000000000000000000#c0")
             }
-            Command::M(range) => {
-                Message::new_ack(&format!("+${}#00", "0".repeat(range.length * 2)))
-            }
-            Command::P => Message::new_ack("+$00000000#80"),
+            Command::M(range) => Packet::ack(&("0".repeat(range.length * 2))),
+            Command::P => Packet::ack("00000000"), // Message::new_ack("+$00000000#80"),
             _ => return Err(format!("unkown command: {:?}", cmd).to_string()),
         };
-        Ok((Reply::Message(message), remaining_input))
+        Ok((Reply::Packet(packet), remaining_input))
     } else {
         Ok((Reply::Nothing, remaining_input))
     }

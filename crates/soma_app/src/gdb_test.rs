@@ -1,7 +1,6 @@
-//TODO Test
-//$qSupported:multiprocess+;swbreak+;hwbreak+;qRelocInsn+;fork-events+;vfork-events+;exec-events+;vContSupported+;QThreadEvents+;QThreadOptions+;no-resumed+;memory-tagging+;xmlRegisters=i386;error-message+#14
-
-use crate::gdb::{Command, GDBFeatures, MemoryRange, parse_memory_range, parse_next_command};
+use crate::gdb::{
+    Command, GDBFeatures, MemoryRange, Packet, parse_memory_range, parse_next_command,
+};
 
 #[test]
 fn test_parse_command() -> Result<(), String> {
@@ -39,6 +38,26 @@ fn test_parse_memory_range() -> Result<(), String> {
     for (input, range) in cases {
         let range_parsed = parse_memory_range(input)?;
         assert_eq!(range_parsed, range);
+    }
+    Ok(())
+}
+
+#[test]
+fn test_packet_string() -> Result<(), String> {
+    let cases = [
+        (Packet::ack("S00"), "+$S00#b3"),
+        (Packet::ack("QC1"), "+$QC1#c5"),
+        (
+            Packet::nack("qSupported:swbreak+;vContSupported+;QThreadEvents+"),
+            "$qSupported:swbreak+;vContSupported+;QThreadEvents+#45",
+        ),
+        (Packet::ack("vcont;c;s;t"), "+$vcont;c;s;t#25"),
+        (Packet::ack(""), "+$#00"),
+    ];
+
+    for (packet, packet_str_want) in cases {
+        let str_got = packet.packet_string();
+        assert_eq!(packet_str_want, str_got);
     }
     Ok(())
 }
