@@ -55,6 +55,7 @@ fn main() -> eframe::Result {
 
     let shared_state = Arc::new(RwLock::new(DebuggerSharedState::new(step_control_init)));
     let shared_state_emu = shared_state.clone();
+    let shared_state_gdb = shared_state.clone();
 
     //let dim = [dmg::RESOLUTION_X as f32, dmg::RESOLUTION_Y as f32];
     let (debug, dim) = if args.debugger {
@@ -67,8 +68,8 @@ fn main() -> eframe::Result {
         (None, [256.0 + 20.0, 256.0 + 20.0]) // TODO get rid of the border in non-debug mode!
     };
 
-    spawn_async(async {
-        gdb_serve().expect("gbd serve");
+    spawn_async(async move {
+        gdb_serve(&shared_state_gdb).expect("gbd serve");
     });
 
     spawn_async(async move {

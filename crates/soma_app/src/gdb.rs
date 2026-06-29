@@ -2,8 +2,12 @@
 #[path = "./gdb_test.rs"]
 mod gdb_test;
 
+use std::sync::{Arc, RwLock};
+
 use std::io::{Read, Write};
 use std::net::TcpListener;
+
+use crate::app::DebuggerSharedState;
 
 #[derive(Debug, PartialEq)]
 enum Command {
@@ -84,7 +88,7 @@ enum Reply {
     Plus,
 }
 
-pub fn gdb_serve() -> Result<(), String> {
+pub fn gdb_serve(shared_state: &Arc<RwLock<DebuggerSharedState>>) -> Result<(), String> {
     let listener = TcpListener::bind("127.0.0.1:1234").expect("tcp bind");
     println!("Server listening on 127.0.0.1:1234");
     let (mut stream, _) = listener.accept().expect("tcp accept");
@@ -118,7 +122,8 @@ pub fn gdb_serve() -> Result<(), String> {
                     println!("-> {}", cmd);
                     let mut remaining_cmd: &str = &cmd;
                     while !remaining_cmd.is_empty() {
-                        let (reply, next_remaining) = handle_next_command(remaining_cmd)?;
+                        let (reply, next_remaining) =
+                            handle_next_command(remaining_cmd, shared_state)?;
                         remaining_cmd = next_remaining;
                         match reply {
                             Reply::Packet(packet) => {
@@ -147,7 +152,10 @@ pub fn gdb_serve() -> Result<(), String> {
     Ok(())
 }
 
-fn handle_next_command(input: &str) -> Result<(Reply, &str), String> {
+fn handle_next_command<'a>(
+    input: &'a str,
+    shared_state: &Arc<RwLock<DebuggerSharedState>>,
+) -> Result<(Reply, &'a str), String> {
     let (may_cmd, remaining_input) = parse_next_command(input)?;
 
     if let Some(cmd) = may_cmd {
@@ -165,8 +173,11 @@ fn handle_next_command(input: &str) -> Result<(Reply, &str), String> {
             Command::VMustReplyEmpty => Packet::ack(""),
             Command::H(_) => Packet::ack("OK"), //Message::new_ack("+$OK#9a"), // only one thread in soma, nothing to prepare. just ack
             Command::G => {
-                Packet::ack("0000000000000000000000000000000000000000000000000000")
-                //Message::new_ack("+$0000000000000000000000000000000000000000000000000000#c0")
+                let pc = shared_state.read().unwrap().register.pc;
+                Packet::ack(&format!(
+                    "0000000000000000000000{:04X}00000000000000000000000000",
+                    pc
+                ))
             }
             Command::M(range) => Packet::ack(&("0".repeat(range.length * 2))),
             Command::P => Packet::ack("00000000"), // Message::new_ack("+$00000000#80"),
