@@ -1,9 +1,10 @@
-use crate::{ROM, io::IO};
+use crate::io::IO;
+use crate::rom::ROM;
 
-pub struct MemoryController<'a> {
+pub struct MemoryController {
     /// 0x0000 to 0x3FFF ROM Bank 00
     /// 0x4000 to 0x7FFF ROM Bank NN (switchable banks)
-    pub rom: Option<ROM<'a>>,
+    pub rom: Option<ROM>,
 
     /// 0x8000 to 0x8FFF Tiles/Sprites
     /// 0x9000 to 0x97FF Tiles At
@@ -22,7 +23,7 @@ const VRAM_END: u16 = 0x9FFF;
 const IO_START: u16 = 0xFF00;
 const IO_END: u16 = 0xFFFF;
 
-impl<'a> MemoryController<'a> {
+impl MemoryController {
     pub fn read(&self, addr: u16) -> u8 {
         if addr <= ROM_0_END {
             if let Some(rom) = &self.rom {

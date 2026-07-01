@@ -1,6 +1,6 @@
-use crate::ROM;
 use crate::io::IO;
 use crate::memory::MemoryController;
+use crate::rom::ROM;
 use crate::sm83::{RegBuilder, Register, SM83};
 
 #[test]
@@ -11,7 +11,7 @@ fn test_err() -> Result<(), &'static str> {
     )];
 
     for (mem, err) in cases {
-        let rom = ROM::new(&mem);
+        let rom = ROM::new_copy_from_slice(&mem);
         let r = exec(IO::init(), Register::zero(), rom);
         assert!(r.is_err(), "expected error '{}', but got Ok", err);
         match r {
@@ -27,7 +27,7 @@ fn test_nop() -> Result<(), &'static str> {
     let cases = [([psy::arch::sm83::INSTR_NOP.op_code])];
 
     for mem in cases {
-        let rom = ROM::new(&mem);
+        let rom = ROM::new_copy_from_slice(&mem);
         let (sm83, _) = exec(IO::init(), Register::zero(), rom)?;
         assert_eq!(sm83.pc(), 1, "nop");
         assert_equal_v_regs(&sm83.reg, &Register::zero(), "nop");
@@ -554,10 +554,10 @@ fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), &'s
     exec_with_mc(mc, reg)
 }
 
-fn exec_with_mc<'a>(
-    mut mc: MemoryController<'a>,
+fn exec_with_mc(
+    mut mc: MemoryController,
     reg: Register,
-) -> Result<(SM83, MemoryController<'a>), &'static str> {
+) -> Result<(SM83, MemoryController), &'static str> {
     let mut sm83 = SM83::init();
     sm83.reg = reg;
     sm83.execute(&mut mc)?;

@@ -1,14 +1,11 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::RwLock;
+use std::{collections::HashMap, sync::Arc};
 
 use egui::{Button, CentralPanel, FontDefinitions, Panel, ScrollArea};
-use libsoma::{
-    ROM,
-    sm83::{self, Register},
-};
 use psy::arch::sm83::Sm83Instr;
+
+use libsoma::rom::ROM;
+use libsoma::sm83::{self, Register};
 
 pub struct FrameBuffer {
     pub buffer: Vec<u8>,
@@ -62,19 +59,18 @@ impl DebuggerState {
     }
 }
 
-pub struct SomaApp<'a> {
+pub struct SomaApp {
     fb: Arc<RwLock<FrameBuffer>>,
-    debug: Option<Debug<'a>>,
 }
 
-pub struct Debug<'a> {
+pub struct Debug {
     shared_state: Arc<RwLock<DebuggerSharedState>>,
     debugger_state: DebuggerState,
-    rom: ROM<'a>,
+    rom: ROM,
 }
 
-impl<'a> Debug<'a> {
-    pub fn new(shared_state: Arc<RwLock<DebuggerSharedState>>, rom: ROM<'a>) -> Debug<'a> {
+impl Debug {
+    pub fn new(shared_state: Arc<RwLock<DebuggerSharedState>>, rom: ROM) -> Debug {
         Debug {
             shared_state,
             debugger_state: DebuggerState::new(),
@@ -83,19 +79,16 @@ impl<'a> Debug<'a> {
     }
 }
 
-impl<'a> SomaApp<'a> {
-    pub fn new(
-        cc: &eframe::CreationContext<'_>,
-        fb: Arc<RwLock<FrameBuffer>>,
-        debug: Option<Debug<'a>>,
-    ) -> SomaApp<'a> {
+impl SomaApp {
+    pub fn new(cc: &eframe::CreationContext<'_>, fb: Arc<RwLock<FrameBuffer>>) -> SomaApp {
         let mut fonts = FontDefinitions::default();
         egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
         cc.egui_ctx.set_fonts(fonts);
 
-        SomaApp { fb, debug }
+        SomaApp { fb }
     }
 
+    /*
     /// Find n confirmed instructions from the disassemble execution cache.
     /// The Vec returned will always be of size n, places where no instructions
     /// could be found will be filled with None,
@@ -134,8 +127,9 @@ impl<'a> SomaApp<'a> {
             result.reverse();
         }
         result
-    }
+    }*/
 
+    /*
     fn instr_row_from_state(&self, ui: &mut egui::Ui, loc: u16, mark_halt: bool, rom: &ROM) {
         let may_instr = self
             .debug
@@ -149,8 +143,9 @@ impl<'a> SomaApp<'a> {
         } else {
             instr_row(ui, loc, mark_halt, rom, None);
         };
-    }
+    }*/
 
+    /*
     fn val_u8(&self, v: u8) -> String {
         match self
             .debug
@@ -169,8 +164,9 @@ impl<'a> SomaApp<'a> {
                 format!("{}", v)
             }
         }
-    }
+    }*/
 
+    /*
     fn val_u16(&self, v: u16) -> String {
         match self
             .debug
@@ -189,18 +185,21 @@ impl<'a> SomaApp<'a> {
                 format!("{}", v)
             }
         }
-    }
+    }*/
 }
 
 const REG_PANEL_WIDTH: f32 = 210.0;
 const MARGIN: f32 = 5.0;
 
-impl<'a> eframe::App for SomaApp<'a> {
+impl eframe::App for SomaApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         CentralPanel::default().show_inside(ui, |ui| {
             // UI parts (screen + debug info)
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
+                    //let fb =
+                    //    tokio::task::block_in_place(|| self.rt_handle.block_on(self.fb.read()));
+
                     let fb = self.fb.read().unwrap();
 
                     if fb.needs_update {
@@ -218,6 +217,7 @@ impl<'a> eframe::App for SomaApp<'a> {
                         ui.request_repaint();
                     }
 
+                    /*
                     if self.debug.is_some() {
                         ui.vertical(|ui| {
                             ui.horizontal(|ui| {
@@ -254,9 +254,11 @@ impl<'a> eframe::App for SomaApp<'a> {
                             });
                         });
                     }
+                    */
                 });
             });
 
+            /*
             if self.debug.is_some() {
                 Panel::bottom("bottom").show_inside(ui, |ui| {
                     egui::Frame::new()
@@ -615,6 +617,7 @@ impl<'a> eframe::App for SomaApp<'a> {
                         });
                 });
             }
+            */
         });
     }
 }

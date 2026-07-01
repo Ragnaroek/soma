@@ -1,19 +1,19 @@
 use psy::arch::sm83::Sm83Instr;
 
-use crate::ROM;
 use crate::io::IO;
 use crate::memory::MemoryController;
+use crate::rom::ROM;
 use crate::sm83::SM83;
 
 pub const RESOLUTION_X: usize = 166;
 pub const RESOLUTION_Y: usize = 144;
 
-pub struct DMG<'a, T> {
+pub struct DMG<T> {
     time: Time<T>,
     pub last_refresh_at: f64,
 
     pub sm83: SM83,
-    pub mc: MemoryController<'a>,
+    pub mc: MemoryController,
     debug: fn(&str, u16),
 }
 
@@ -41,9 +41,9 @@ pub struct StepResult {
     pub fb_refresh: bool,
 }
 
-impl<'a, T> DMG<'a, T> {
+impl<T> DMG<T> {
     /// Initialise a original gameboy system (DMG)
-    pub fn init(rom: ROM<'a>, time: Time<T>, debug: fn(&str, u16)) -> DMG<'a, T> {
+    pub fn init(rom: ROM, time: Time<T>, debug: fn(&str, u16)) -> DMG<T> {
         let mut sm83 = SM83::init();
         sm83.set_pc(0x100);
         sm83.reg.sp = 0xFFFE;

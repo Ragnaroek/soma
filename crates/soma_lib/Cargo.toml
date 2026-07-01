@@ -8,5 +8,10 @@ authors = ["Michael Bohn <spaceodyssey@gmx.de>"]
 name = "libsoma"
 path = "src/lib.rs"
 
+[features]
+default = ["max_rom_512kb"]
+max_rom_32kb = []
+max_rom_512kb = []
+
 [dependencies]
 psy = { path = "../../../psy/" }

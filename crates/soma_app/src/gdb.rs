@@ -2,12 +2,12 @@
 #[path = "./gdb_test.rs"]
 mod gdb_test;
 
-use std::sync::{Arc, RwLock};
-
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::sync::Arc;
+use std::sync::RwLock;
 
-use crate::app::DebuggerSharedState;
+use crate::Emulation;
 
 #[derive(Debug, PartialEq)]
 enum Command {
@@ -88,7 +88,7 @@ enum Reply {
     Plus,
 }
 
-pub fn gdb_serve(shared_state: &Arc<RwLock<DebuggerSharedState>>) -> Result<(), String> {
+pub fn gdb_serve(emulation_lock: Arc<RwLock<Emulation>>) -> Result<(), String> {
     let listener = TcpListener::bind("127.0.0.1:1234").expect("tcp bind");
     println!("Server listening on 127.0.0.1:1234");
     let (mut stream, _) = listener.accept().expect("tcp accept");
@@ -123,7 +123,7 @@ pub fn gdb_serve(shared_state: &Arc<RwLock<DebuggerSharedState>>) -> Result<(), 
                     let mut remaining_cmd: &str = &cmd;
                     while !remaining_cmd.is_empty() {
                         let (reply, next_remaining) =
-                            handle_next_command(remaining_cmd, shared_state)?;
+                            handle_next_command(remaining_cmd, &emulation_lock)?;
                         remaining_cmd = next_remaining;
                         match reply {
                             Reply::Packet(packet) => {
@@ -154,7 +154,7 @@ pub fn gdb_serve(shared_state: &Arc<RwLock<DebuggerSharedState>>) -> Result<(), 
 
 fn handle_next_command<'a>(
     input: &'a str,
-    shared_state: &Arc<RwLock<DebuggerSharedState>>,
+    emulation_lock: &Arc<RwLock<Emulation>>,
 ) -> Result<(Reply, &'a str), String> {
     let (may_cmd, remaining_input) = parse_next_command(input)?;
 
@@ -173,7 +173,8 @@ fn handle_next_command<'a>(
             Command::VMustReplyEmpty => Packet::ack(""),
             Command::H(_) => Packet::ack("OK"), //Message::new_ack("+$OK#9a"), // only one thread in soma, nothing to prepare. just ack
             Command::G => {
-                let pc = shared_state.read().unwrap().register.pc;
+                let emu = emulation_lock.read().unwrap();
+                let pc = emu.dmg.sm83.reg.pc;
                 Packet::ack(&format!(
                     "0000000000000000000000{:04X}00000000000000000000000000",
                     pc
