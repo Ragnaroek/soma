@@ -18,6 +18,8 @@ pub struct MemoryController {
 
 // mem space definition (inclusive intervals)
 const ROM_0_END: u16 = 0x3FFF;
+const ROM_N_START: u16 = 0x4000;
+const ROM_N_END: u16 = 0x7FFF;
 const VRAM_START: u16 = 0x8000;
 const VRAM_END: u16 = 0x9FFF;
 const IO_START: u16 = 0xFF00;
@@ -26,6 +28,13 @@ const IO_END: u16 = 0xFFFF;
 impl MemoryController {
     pub fn read(&self, addr: u16) -> u8 {
         if addr <= ROM_0_END {
+            if let Some(rom) = &self.rom {
+                rom.read_u8(addr as usize)
+            } else {
+                panic!("no ROM attached")
+            }
+        } else if addr >= ROM_N_START && addr <= ROM_N_END {
+            // TODO implement bank switch
             if let Some(rom) = &self.rom {
                 rom.read_u8(addr as usize)
             } else {

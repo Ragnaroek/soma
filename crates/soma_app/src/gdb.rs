@@ -2,6 +2,7 @@
 #[path = "./gdb_test.rs"]
 mod gdb_test;
 
+use std::fmt::Write as FmtWrite;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::Arc;
@@ -163,7 +164,7 @@ fn handle_next_command<'a>(
             Command::Plus => return Ok((Reply::Plus, "")),
             Command::StopQuery => Packet::ack("S00"),
             Command::QSupported(_) => {
-                Packet::nack("qSupported:swbreak+;vContSupported+;QThreadEvents+")
+                Packet::nack("qSupported:hwbreak+;vContSupported+;QThreadEvents+")
             }
             Command::QC => Packet::ack("QC1"),
             Command::QAttached => Packet::ack("1"), //Message::new_ack("+$1#31"), // process already exists, gdb attached to it
@@ -174,20 +175,43 @@ fn handle_next_command<'a>(
             Command::H(_) => Packet::ack("OK"), //Message::new_ack("+$OK#9a"), // only one thread in soma, nothing to prepare. just ack
             Command::G => {
                 let emu = emulation_lock.read().unwrap();
-                let pc = emu.dmg.sm83.reg.pc;
+                let pc = emu.dmg.sm83.reg.pc.to_le_bytes();
+                let sp = emu.dmg.sm83.reg.sp.to_le_bytes();
                 Packet::ack(&format!(
-                    "0000000000000000000000{:04X}00000000000000000000000000",
-                    pc
+                    "0000000000000000{:02X}{:02X}{:02X}{:02X}0000000000000000000000000000",
+                    //AF BC  DE  HL  SP    PC
+                    sp[0],
+                    sp[1],
+                    pc[0],
+                    pc[1]
                 ))
             }
-            Command::M(range) => Packet::ack(&("0".repeat(range.length * 2))),
-            Command::P => Packet::ack("00000000"), // Message::new_ack("+$00000000#80"),
+            Command::M(range) => read_memory(emulation_lock, range), // Packet::ack(&("0".repeat(range.length * 2))),
+            Command::P => Packet::ack("00000000"),
             _ => return Err(format!("unkown command: {:?}", cmd).to_string()),
         };
         Ok((Reply::Packet(packet), remaining_input))
     } else {
         Ok((Reply::Nothing, remaining_input))
     }
+}
+
+fn read_memory(emulation_lock: &Arc<RwLock<Emulation>>, range: MemoryRange) -> Packet {
+    let emu = emulation_lock.read().unwrap();
+    let mut result = String::new();
+    for p in range.addr..(range.addr + range.length) {
+        println!("!!! p = {:x}", p);
+        if p >= 0xA000 && p < 0xFF00 {
+            // RAM, sprite table and echo RAM not readable yet
+            write!(&mut result, "{:02x}", 0).unwrap();
+        } else if p < 0xFFFF {
+            let byte = emu.dmg.mc.read(p as u16);
+            write!(&mut result, "{:02x}", byte).unwrap();
+        } else {
+            write!(&mut result, "{:02x}", 0).unwrap();
+        }
+    }
+    Packet::ack(&result)
 }
 
 fn parse_next_command(input: &str) -> Result<(Option<Command>, &str), String> {

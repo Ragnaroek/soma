@@ -14,7 +14,7 @@ impl IO {
     pub fn init() -> IO {
         IO {
             mem_effect: [MemEffect {
-                value: 0,
+                value: 0x00,
                 effect: no_op,
             }; 0xFF],
         }
