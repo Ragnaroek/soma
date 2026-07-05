@@ -4,12 +4,19 @@ use std::{collections::HashMap, sync::Arc};
 use egui::{Button, CentralPanel, FontDefinitions, Panel, ScrollArea};
 use psy::arch::sm83::Sm83Instr;
 
+use libsoma::dmg::{DMG, Time};
 use libsoma::rom::ROM;
 use libsoma::sm83::{self, Register};
+use std::{fs, time::Instant};
 
 pub struct FrameBuffer {
     pub buffer: Vec<u8>,
     pub needs_update: bool,
+}
+
+pub struct Emulation {
+    pub dmg: DMG<Instant>,
+    pub step_control: StepControl,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -18,23 +25,6 @@ pub enum StepControl {
     BreakAt(u16),
     NextStep,
     Run,
-}
-
-/// Shared state between the emulator and the debugger
-pub struct DebuggerSharedState {
-    pub register: Register,
-    pub tile_map_1: [u8; 32 * 32],
-    pub step_control: StepControl,
-}
-
-impl DebuggerSharedState {
-    pub fn new(step_control: StepControl) -> DebuggerSharedState {
-        DebuggerSharedState {
-            register: Register::zero(),
-            tile_map_1: [0; 32 * 32],
-            step_control,
-        }
-    }
 }
 
 #[derive(PartialEq)]
@@ -61,31 +51,66 @@ impl DebuggerState {
 
 pub struct SomaApp {
     fb: Arc<RwLock<FrameBuffer>>,
+    debugger: Option<Debugger>,
 }
 
-pub struct Debug {
-    shared_state: Arc<RwLock<DebuggerSharedState>>,
-    debugger_state: DebuggerState,
-    rom: ROM,
+pub struct Debugger {
+    emulator: Arc<RwLock<Emulation>>,
+    state: DebuggerState,
 }
 
-impl Debug {
-    pub fn new(shared_state: Arc<RwLock<DebuggerSharedState>>, rom: ROM) -> Debug {
-        Debug {
-            shared_state,
-            debugger_state: DebuggerState::new(),
-            rom,
+impl Debugger {
+    pub fn new(emulator: Arc<RwLock<Emulation>>) -> Debugger {
+        Debugger {
+            emulator,
+            state: DebuggerState::new(),
         }
     }
 }
 
 impl SomaApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, fb: Arc<RwLock<FrameBuffer>>) -> SomaApp {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        fb: Arc<RwLock<FrameBuffer>>,
+        debugger: Option<Debugger>,
+    ) -> SomaApp {
         let mut fonts = FontDefinitions::default();
         egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
         cc.egui_ctx.set_fonts(fonts);
 
-        SomaApp { fb }
+        SomaApp { fb, debugger }
+    }
+
+    fn render_memory_view(&self, ui: &mut egui::Ui) {
+        if let Some(debugger) = self.debugger.as_ref() {
+            ui.vertical(|ui| {
+                ui.horizontal(|ui| {
+                    ui.add(Button::selectable(true, "Tile Map"));
+                });
+                ScrollArea::vertical().show(ui, |ui| {
+                    egui::Grid::new("grid_tilemap")
+                        .min_col_width(0.0)
+                        .min_row_height(0.0)
+                        .show(ui, |ui| {
+                            ui.style_mut().text_styles.insert(
+                                egui::TextStyle::Body,
+                                egui::FontId::new(8.0, egui::FontFamily::Proportional),
+                            );
+
+                            let emu = debugger.emulator.read().expect("emu");
+                            for x in 0..32 {
+                                for y in 0..32 {
+                                    ui.label(format!(
+                                        "{:03}\u{2009}",
+                                        emu.dmg.mc.read(0x9800 + y * 32 + x)
+                                    ));
+                                }
+                                ui.end_row();
+                            }
+                        });
+                });
+            });
+        }
     }
 
     /*
@@ -197,9 +222,6 @@ impl eframe::App for SomaApp {
             // UI parts (screen + debug info)
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
-                    //let fb =
-                    //    tokio::task::block_in_place(|| self.rt_handle.block_on(self.fb.read()));
-
                     let fb = self.fb.read().unwrap();
 
                     if fb.needs_update {
@@ -217,44 +239,7 @@ impl eframe::App for SomaApp {
                         ui.request_repaint();
                     }
 
-                    /*
-                    if self.debug.is_some() {
-                        ui.vertical(|ui| {
-                            ui.horizontal(|ui| {
-                                ui.add(Button::selectable(true, "Tile Map"));
-                            });
-                            ScrollArea::vertical().show(ui, |ui| {
-                                egui::Grid::new("grid_tilemap")
-                                    .min_col_width(0.0)
-                                    .min_row_height(0.0)
-                                    .show(ui, |ui| {
-                                        ui.style_mut().text_styles.insert(
-                                            egui::TextStyle::Body,
-                                            egui::FontId::new(8.0, egui::FontFamily::Proportional),
-                                        );
-
-                                        let shared_state = self
-                                            .debug
-                                            .as_ref()
-                                            .unwrap()
-                                            .shared_state
-                                            .read()
-                                            .unwrap();
-
-                                        for x in 0..32 {
-                                            for y in 0..32 {
-                                                ui.label(format!(
-                                                    "{:03}\u{2009}",
-                                                    shared_state.tile_map_1[y * 32 + x]
-                                                ));
-                                            }
-                                            ui.end_row();
-                                        }
-                                    });
-                            });
-                        });
-                    }
-                    */
+                    self.render_memory_view(ui);
                 });
             });
 

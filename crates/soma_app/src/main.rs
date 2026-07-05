@@ -14,7 +14,7 @@ use std::{fs, time::Instant};
 use libsoma::dmg::{DMG, Time};
 use libsoma::rom::ROM;
 
-use crate::app::{FrameBuffer, SomaApp, StepControl};
+use crate::app::{Debugger, Emulation, FrameBuffer, SomaApp, StepControl};
 use crate::gdb::gdb_serve;
 
 #[derive(Parser)]
@@ -31,11 +31,6 @@ struct Cli {
     /// Enable gdb support
     #[arg(long)]
     gdb: bool,
-}
-
-struct Emulation {
-    dmg: DMG<Instant>,
-    step_control: StepControl,
 }
 
 fn main() -> eframe::Result {
@@ -75,11 +70,19 @@ fn main() -> eframe::Result {
         });
     }
 
+    let (debugger, dim) = if args.debugger {
+        (
+            Some(Debugger::new(shared_emulation.clone())),
+            [1000.0, 850.0],
+        )
+    } else {
+        (None, [256.0 + 20.0, 256.0 + 20.0])
+    };
+
     std::thread::spawn(|| {
         emulation_loop(shared_emulation_emu, frame_buffer_emu);
     });
 
-    let dim = [256.0 + 20.0, 256.0 + 20.0];
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size(dim)
@@ -90,7 +93,7 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Soma",
         native_options,
-        Box::new(|cc| Ok(Box::new(SomaApp::new(cc, frame_buffer)))),
+        Box::new(|cc| Ok(Box::new(SomaApp::new(cc, frame_buffer, debugger)))),
     )
 }
 
