@@ -17,5 +17,5 @@ eframe = "0.34.1"
 egui = "0.34.1"
 egui-phosphor = "0.12"
 
-libsoma = { path = "../soma_lib" }
+libsoma = { path = "../soma_lib", features = ["max_rom_512kb"] }
 psy = { path = "../../../psy/" }

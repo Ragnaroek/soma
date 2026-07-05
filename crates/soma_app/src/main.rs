@@ -27,6 +27,10 @@ struct Cli {
     /// Enable debug view mode
     #[arg(long)]
     debugger: bool,
+
+    /// Enable gdb support
+    #[arg(long)]
+    gdb: bool,
 }
 
 struct Emulation {
@@ -65,9 +69,11 @@ fn main() -> eframe::Result {
     let shared_emulation_gdb = shared_emulation.clone();
     let shared_emulation_emu = shared_emulation.clone();
 
-    std::thread::spawn(|| {
-        gdb_serve(shared_emulation_gdb).expect("gdb serve");
-    });
+    if args.gdb {
+        std::thread::spawn(|| {
+            gdb_serve(shared_emulation_gdb).expect("gdb serve");
+        });
+    }
 
     std::thread::spawn(|| {
         emulation_loop(shared_emulation_emu, frame_buffer_emu);
