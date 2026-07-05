@@ -9,7 +9,8 @@ name = "libsoma"
 path = "src/lib.rs"
 
 [features]
-default = ["max_rom_512kb"]
+max_rom_512b = [] # a tiny ROM for testing
+max_rom_16kb = []
 max_rom_32kb = []
 max_rom_512kb = []
 

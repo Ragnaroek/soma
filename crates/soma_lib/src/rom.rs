@@ -1,9 +1,22 @@
-// Define a type alias for the selected size
+#[cfg(feature = "max_rom_512b")]
+const MAX_ROM_SIZE: usize = 512;
+
+#[cfg(feature = "max_rom_16kb")]
+const MAX_ROM_SIZE: usize = 16 * 1024;
+
 #[cfg(feature = "max_rom_32kb")]
 const MAX_ROM_SIZE: usize = 32 * 1024;
 
 #[cfg(feature = "max_rom_512kb")]
 const MAX_ROM_SIZE: usize = 512 * 1024;
+
+#[cfg(not(any(
+    feature = "max_rom_512b",
+    feature = "max_rom_16kb",
+    feature = "max_rom_32kb",
+    feature = "max_rom_512kb"
+)))]
+const MAX_ROM_SIZE: usize = 16 * 1024;
 
 pub struct ROM {
     pub data: [u8; MAX_ROM_SIZE],
@@ -14,7 +27,11 @@ pub struct ROM {
 impl ROM {
     pub fn new_copy_from_slice(data_in: &[u8]) -> ROM {
         if data_in.len() > MAX_ROM_SIZE {
-            panic!("ERR: Cannot create ROM, MAX_ROM_SIZE: {}", MAX_ROM_SIZE);
+            panic!(
+                "ERR: Cannot create ROM, MAX_ROM_SIZE: {}, requested: {}",
+                MAX_ROM_SIZE,
+                data_in.len()
+            );
         }
         let mut data = [0; MAX_ROM_SIZE];
         data[..data_in.len()].copy_from_slice(data_in);

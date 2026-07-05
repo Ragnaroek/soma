@@ -1,5 +1,5 @@
 test:
-    cargo test
+    cargo test --features max_rom_512b
 
 coverage:
     cargo tarpaulin --ignore-tests --out Lcov --output-dir ./crates/soma_lib

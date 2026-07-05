@@ -44,7 +44,7 @@ fn test_jp() -> Result<(), &'static str> {
     )];
 
     for (exp, mem, pc) in cases {
-        let rom = ROM::new(&mem);
+        let rom = ROM::new_copy_from_slice(&mem);
         let (sm83, _) = exec(IO::init(), Register::zero(), rom)?;
         assert_eq!(
             sm83.pc(),
@@ -158,7 +158,7 @@ fn test_jr() -> Result<(), &'static str> {
     ];
 
     for (exp, reg_init, mem, pc) in cases {
-        let rom = ROM::new(mem);
+        let rom = ROM::new_copy_from_slice(mem);
         let (sm83, _) = exec(IO::init(), reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
@@ -301,7 +301,7 @@ fn test_ld() -> Result<(), &'static str> {
     ];
 
     for (exp, io, reg_start, mem, pc_at, reg_after, mem_checks) in cases {
-        let rom = ROM::new(mem);
+        let rom = ROM::new_copy_from_slice(mem);
         let (sm83, mc) = exec(io, reg_start, rom)?;
         assert_eq!(
             sm83.pc(),
@@ -338,7 +338,7 @@ fn test_cp() -> Result<(), &'static str> {
     ];
 
     for (exp, reg_start, mem, reg_after) in cases {
-        let rom = ROM::new(mem);
+        let rom = ROM::new_copy_from_slice(mem);
         let (sm83, _) = exec(IO::init(), reg_start, rom)?;
         assert_eq!(sm83.pc(), mem.len() as u16);
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
@@ -370,7 +370,7 @@ fn test_inc() -> Result<(), &'static str> {
     ];
 
     for (exp, reg_init, mem, reg_after) in cases {
-        let rom = ROM::new(mem);
+        let rom = ROM::new_copy_from_slice(mem);
         let (sm83, _) = exec(IO::init(), reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
@@ -403,7 +403,7 @@ fn test_dec() -> Result<(), &'static str> {
     ];
 
     for (exp, reg_init, mem, reg_after) in cases {
-        let rom = ROM::new(mem);
+        let rom = ROM::new_copy_from_slice(mem);
         let (sm83, _) = exec(IO::init(), reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
@@ -436,7 +436,7 @@ fn test_or() -> Result<(), &'static str> {
     ];
 
     for (exp, reg_init, mem, reg_after) in cases {
-        let rom = ROM::new(mem);
+        let rom = ROM::new_copy_from_slice(mem);
         let (sm83, _) = exec(IO::init(), reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
@@ -460,12 +460,11 @@ fn test_call() -> Result<(), &'static str> {
     let cases = [("(call 0x150)", mem, 0x167, 0x150)];
 
     for (exp, mem, pc_start, pc_after) in cases {
-        let rom = ROM::new(&mem);
-        let (sm83, mc) = exec(
-            IO::init(),
-            RegBuilder::new().pc(pc_start).sp(0xFFFE).reg(),
-            rom,
-        )?;
+        let rom = ROM::new_copy_from_slice(&mem);
+        let io = IO::init();
+        let regs = RegBuilder::new().pc(pc_start).sp(0xFFFE).reg();
+        let (sm83, mc) = exec(io, regs, rom)?;
+
         assert_eq!(
             sm83.pc(),
             pc_after,
@@ -505,7 +504,7 @@ fn test_ret() -> Result<(), &'static str> {
     )];
 
     for (exp, mem, sp_start, sp_after, pc_start, pc_after, sp_low, sp_high) in cases {
-        let rom = ROM::new(&mem);
+        let rom = ROM::new_copy_from_slice(&mem);
         let mut mc = MemoryController {
             io: IO::init(),
             rom: Some(rom),
