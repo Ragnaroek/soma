@@ -89,7 +89,7 @@ enum Reply {
     Plus,
 }
 
-pub fn gdb_serve(emulation_lock: Arc<RwLock<Emulation>>) -> Result<(), String> {
+pub fn gdb_serve(emulation: Arc<Emulation>) -> Result<(), String> {
     let listener = TcpListener::bind("127.0.0.1:1234").expect("tcp bind");
     println!("Server listening on 127.0.0.1:1234");
     let (mut stream, _) = listener.accept().expect("tcp accept");
@@ -124,7 +124,7 @@ pub fn gdb_serve(emulation_lock: Arc<RwLock<Emulation>>) -> Result<(), String> {
                     let mut remaining_cmd: &str = &cmd;
                     while !remaining_cmd.is_empty() {
                         let (reply, next_remaining) =
-                            handle_next_command(remaining_cmd, &emulation_lock)?;
+                            handle_next_command(remaining_cmd, &emulation)?;
                         remaining_cmd = next_remaining;
                         match reply {
                             Reply::Packet(packet) => {
@@ -155,7 +155,7 @@ pub fn gdb_serve(emulation_lock: Arc<RwLock<Emulation>>) -> Result<(), String> {
 
 fn handle_next_command<'a>(
     input: &'a str,
-    emulation_lock: &Arc<RwLock<Emulation>>,
+    emulation: &Arc<Emulation>,
 ) -> Result<(Reply, &'a str), String> {
     let (may_cmd, remaining_input) = parse_next_command(input)?;
 
@@ -174,9 +174,9 @@ fn handle_next_command<'a>(
             Command::VMustReplyEmpty => Packet::ack(""),
             Command::H(_) => Packet::ack("OK"), //Message::new_ack("+$OK#9a"), // only one thread in soma, nothing to prepare. just ack
             Command::G => {
-                let emu = emulation_lock.read().unwrap();
-                let pc = emu.dmg.sm83.reg.pc.to_le_bytes();
-                let sp = emu.dmg.sm83.reg.sp.to_le_bytes();
+                let dmg = emulation.dmg.read().unwrap();
+                let pc = dmg.sm83.reg.pc.to_le_bytes();
+                let sp = dmg.sm83.reg.sp.to_le_bytes();
                 Packet::ack(&format!(
                     "0000000000000000{:02X}{:02X}{:02X}{:02X}0000000000000000000000000000",
                     //AF BC  DE  HL  SP    PC
@@ -186,7 +186,7 @@ fn handle_next_command<'a>(
                     pc[1]
                 ))
             }
-            Command::M(range) => read_memory(emulation_lock, range), // Packet::ack(&("0".repeat(range.length * 2))),
+            Command::M(range) => read_memory(emulation, range), // Packet::ack(&("0".repeat(range.length * 2))),
             Command::P => Packet::ack("00000000"),
             _ => return Err(format!("unkown command: {:?}", cmd).to_string()),
         };
@@ -196,8 +196,8 @@ fn handle_next_command<'a>(
     }
 }
 
-fn read_memory(emulation_lock: &Arc<RwLock<Emulation>>, range: MemoryRange) -> Packet {
-    let emu = emulation_lock.read().unwrap();
+fn read_memory(emulation: &Arc<Emulation>, range: MemoryRange) -> Packet {
+    let dmg = emulation.dmg.read().unwrap();
     let mut result = String::new();
     for p in range.addr..(range.addr + range.length) {
         println!("!!! p = {:x}", p);
@@ -205,7 +205,7 @@ fn read_memory(emulation_lock: &Arc<RwLock<Emulation>>, range: MemoryRange) -> P
             // RAM, sprite table and echo RAM not readable yet
             write!(&mut result, "{:02x}", 0).unwrap();
         } else if p < 0xFFFF {
-            let byte = emu.dmg.mc.read(p as u16);
+            let byte = dmg.mc.read(p as u16);
             write!(&mut result, "{:02x}", byte).unwrap();
         } else {
             write!(&mut result, "{:02x}", 0).unwrap();

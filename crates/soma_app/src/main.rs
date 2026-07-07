@@ -56,11 +56,11 @@ fn main() -> eframe::Result {
         now: std_now,
     };
     let emulation = Emulation {
-        dmg: DMG::init(rom, timer, debug_print),
-        step_control: step_control_init,
+        dmg: RwLock::new(DMG::init(rom, timer, debug_print)),
+        step_control: RwLock::new(step_control_init),
     };
 
-    let shared_emulation = Arc::new(RwLock::new(emulation));
+    let shared_emulation = Arc::new(emulation);
     let shared_emulation_gdb = shared_emulation.clone();
     let shared_emulation_emu = shared_emulation.clone();
 
@@ -97,29 +97,26 @@ fn main() -> eframe::Result {
     )
 }
 
-fn emulation_loop(
-    emulation_lock: Arc<RwLock<Emulation>>,
-    frame_buffer_lock: Arc<RwLock<FrameBuffer>>,
-) {
+fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<FrameBuffer>>) {
     loop {
         {
-            let emu = emulation_lock.read().unwrap();
-            if emu.step_control == StepControl::Break {
+            let step_control = emulation.step_control.read().unwrap();
+            if *step_control == StepControl::Break {
                 thread::sleep(Duration::from_millis(30));
                 continue;
             }
-            if let StepControl::BreakAt(break_at) = emu.step_control {
-                if emu.dmg.sm83.reg.pc == break_at {
+            if let StepControl::BreakAt(break_at) = *step_control {
+                if emulation.dmg.read().unwrap().sm83.pc() == break_at {
                     thread::sleep(Duration::from_millis(30));
                     continue;
                 }
             }
         }
         let r = {
-            let mut emu = emulation_lock.write().unwrap();
-            let r = emu.dmg.step();
-            if emu.step_control == StepControl::NextStep {
-                emu.step_control = StepControl::Break;
+            let mut dmg = emulation.dmg.write().unwrap();
+            let r = dmg.step();
+            if *emulation.step_control.read().unwrap() == StepControl::NextStep {
+                *emulation.step_control.write().unwrap() = StepControl::Break;
             }
             r
         };
@@ -133,8 +130,8 @@ fn emulation_loop(
             if step_result.fb_refresh {
                 // update framebuffer
                 let mut fb = frame_buffer_lock.write().unwrap();
-                let emu = emulation_lock.read().unwrap();
-                emu.dmg.fb_rgb(&mut fb.buffer);
+                let dmg = emulation.dmg.read().unwrap();
+                dmg.fb_rgb(&mut fb.buffer);
                 fb.needs_update = true;
             }
         } else {

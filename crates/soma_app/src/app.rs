@@ -4,10 +4,10 @@ use std::{collections::HashMap, sync::Arc};
 use egui::{Button, CentralPanel, FontDefinitions, Panel, ScrollArea};
 use psy::arch::sm83::Sm83Instr;
 
-use libsoma::dmg::{DMG, Time};
+use libsoma::dmg::DMG;
 use libsoma::rom::ROM;
-use libsoma::sm83::{self, Register};
-use std::{fs, time::Instant};
+use libsoma::sm83;
+use std::time::Instant;
 
 pub struct FrameBuffer {
     pub buffer: Vec<u8>,
@@ -15,8 +15,8 @@ pub struct FrameBuffer {
 }
 
 pub struct Emulation {
-    pub dmg: DMG<Instant>,
-    pub step_control: StepControl,
+    pub dmg: RwLock<DMG<Instant>>,
+    pub step_control: RwLock<StepControl>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -55,12 +55,12 @@ pub struct SomaApp {
 }
 
 pub struct Debugger {
-    emulator: Arc<RwLock<Emulation>>,
+    emulator: Arc<Emulation>, // TOOD rename field to emu
     state: DebuggerState,
 }
 
 impl Debugger {
-    pub fn new(emulator: Arc<RwLock<Emulation>>) -> Debugger {
+    pub fn new(emulator: Arc<Emulation>) -> Debugger {
         Debugger {
             emulator,
             state: DebuggerState::new(),
@@ -97,12 +97,12 @@ impl SomaApp {
                                 egui::FontId::new(8.0, egui::FontFamily::Proportional),
                             );
 
-                            let emu = debugger.emulator.read().expect("emu");
+                            let dmg = debugger.emulator.dmg.read().expect("emu");
                             for x in 0..32 {
                                 for y in 0..32 {
                                     ui.label(format!(
                                         "{:03}\u{2009}",
-                                        emu.dmg.mc.read(0x9800 + y * 32 + x)
+                                        dmg.mc.read(0x9800 + y * 32 + x)
                                     ));
                                 }
                                 ui.end_row();
@@ -149,13 +149,13 @@ impl SomaApp {
 
                                         {
                                             let debug = self.debugger.as_mut().unwrap();
-                                            let emu = debug.emulator.read().unwrap();
-                                            let pc = emu.dmg.sm83.pc();
+                                            let dmg = debug.emulator.dmg.read().unwrap();
+                                            let pc = dmg.sm83.pc();
                                             let may_pc_instr =
                                                 debug.state.disassemble_cache.get(&pc);
                                             if may_pc_instr.is_none() {
                                                 let instr =
-                                                    psy::arch::sm83::decode(emu.dmg.mc.read(pc));
+                                                    psy::arch::sm83::decode(dmg.mc.read(pc));
                                                 debug.state.disassemble_cache.insert(pc, instr);
                                             };
                                         }
@@ -163,48 +163,44 @@ impl SomaApp {
                                         ui.vertical(|ui| {
                                             ui.horizontal(|ui| {
                                                 if ui.button("Step").clicked() {
-                                                    let mut shared_state = self
+                                                    println!("!!! step clicked");
+                                                    let mut step_control = self
                                                         .debugger
                                                         .as_ref()
                                                         .unwrap()
                                                         .emulator
+                                                        .step_control
                                                         .write()
                                                         .unwrap();
-                                                    shared_state.step_control =
-                                                        StepControl::NextStep;
+                                                    println!("!! step");
+                                                    *step_control = StepControl::NextStep;
                                                 }
                                                 if ui.button("Run").clicked() {
-                                                    let mut shared_state = self
+                                                    let mut step_control = self
                                                         .debugger
                                                         .as_ref()
                                                         .unwrap()
                                                         .emulator
+                                                        .step_control
                                                         .write()
                                                         .unwrap();
-                                                    shared_state.step_control = StepControl::Run;
+                                                    *step_control = StepControl::Run;
                                                 }
                                             });
 
                                             egui::Grid::new("grid_instructions")
                                                 .min_col_width(0.0)
                                                 .show(ui, |ui| {
-                                                    let emu = self
+                                                    let dmg = self
                                                         .debugger
                                                         .as_ref()
                                                         .unwrap()
                                                         .emulator
+                                                        .dmg
                                                         .read()
                                                         .unwrap();
-                                                    let pc = emu.dmg.sm83.pc();
-
-                                                    let emu = self
-                                                        .debugger
-                                                        .as_ref()
-                                                        .unwrap()
-                                                        .emulator
-                                                        .read()
-                                                        .unwrap();
-                                                    let rom = emu.dmg.mc.rom.as_ref().expect("ROM");
+                                                    let pc = dmg.sm83.pc();
+                                                    let rom = dmg.mc.rom.as_ref().expect("ROM");
 
                                                     let instr_before = self
                                                         .n_instr(pc, 5, false /*backward*/);
@@ -316,70 +312,71 @@ impl SomaApp {
                                                 };
                                             });
 
-                                            let emu = self
+                                            let dmg = self
                                                 .debugger
                                                 .as_ref()
                                                 .unwrap()
                                                 .emulator
+                                                .dmg
                                                 .read()
                                                 .unwrap();
                                             egui::Grid::new("grid_registers").show(ui, |ui| {
                                                 ui.label("a");
-                                                ui.label(self.val_u8(emu.dmg.sm83.reg.a));
+                                                ui.label(self.val_u8(dmg.sm83.reg.a));
                                                 ui.end_row();
 
                                                 ui.label("b");
-                                                ui.label(self.val_u8(emu.dmg.sm83.reg.b));
+                                                ui.label(self.val_u8(dmg.sm83.reg.b));
                                                 ui.end_row();
                                                 ui.label("c");
-                                                ui.label(self.val_u8(emu.dmg.sm83.reg.c));
+                                                ui.label(self.val_u8(dmg.sm83.reg.c));
                                                 ui.end_row();
                                                 ui.label("bc");
-                                                ui.label(self.val_u16(emu.dmg.sm83.reg.bc()));
+                                                ui.label(self.val_u16(dmg.sm83.reg.bc()));
                                                 ui.end_row();
 
                                                 ui.label("d");
-                                                ui.label(self.val_u8(emu.dmg.sm83.reg.d));
+                                                ui.label(self.val_u8(dmg.sm83.reg.d));
                                                 ui.end_row();
                                                 ui.label("e");
-                                                ui.label(self.val_u8(emu.dmg.sm83.reg.e));
+                                                ui.label(self.val_u8(dmg.sm83.reg.e));
                                                 ui.end_row();
                                                 ui.label("de");
-                                                ui.label(self.val_u16(emu.dmg.sm83.reg.de()));
+                                                ui.label(self.val_u16(dmg.sm83.reg.de()));
                                                 ui.end_row();
 
                                                 ui.label("h");
-                                                ui.label(self.val_u8(emu.dmg.sm83.reg.h));
+                                                ui.label(self.val_u8(dmg.sm83.reg.h));
                                                 ui.end_row();
                                                 ui.label("l");
-                                                ui.label(self.val_u8(emu.dmg.sm83.reg.l));
+                                                ui.label(self.val_u8(dmg.sm83.reg.l));
                                                 ui.end_row();
                                                 ui.label("hl");
-                                                ui.label(self.val_u16(emu.dmg.sm83.reg.hl()));
+                                                ui.label(self.val_u16(dmg.sm83.reg.hl()));
                                                 ui.end_row();
 
                                                 ui.label("sp");
-                                                ui.label(self.val_u16(emu.dmg.sm83.reg.sp));
+                                                ui.label(self.val_u16(dmg.sm83.reg.sp));
                                                 ui.end_row();
 
                                                 ui.label("pc");
-                                                ui.label(self.val_u16(emu.dmg.sm83.reg.pc));
+                                                ui.label(self.val_u16(dmg.sm83.reg.pc));
                                                 ui.end_row();
 
                                                 ui.label("z");
-                                                ui.label(flag(emu.dmg.sm83.reg.f, sm83::Z));
+                                                ui.label(flag(dmg.sm83.reg.f, sm83::Z));
                                                 ui.end_row();
 
                                                 ui.label("n");
-                                                ui.label(flag(emu.dmg.sm83.reg.f, sm83::N));
+                                                ui.label(flag(dmg.sm83.reg.f, sm83::N));
                                                 ui.end_row();
 
                                                 ui.label("h");
-                                                ui.label(flag(emu.dmg.sm83.reg.f, sm83::H));
+                                                ui.label(flag(dmg.sm83.reg.f, sm83::H));
                                                 ui.end_row();
 
                                                 ui.label("c");
-                                                ui.label(flag(emu.dmg.sm83.reg.f, sm83::C));
+                                                ui.label(flag(dmg.sm83.reg.f, sm83::C));
                                                 ui.end_row();
                                             });
                                         });
