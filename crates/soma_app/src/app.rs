@@ -113,7 +113,284 @@ impl SomaApp {
         }
     }
 
-    /*
+    fn render_asm_view(&mut self, ui: &mut egui::Ui) {
+        if self.debugger.is_some() {
+            Panel::bottom("bottom").show_inside(ui, |ui| {
+                egui::Frame::new()
+                    .outer_margin(egui::Margin::same(5))
+                    .show(ui, |ui| {
+                        let painter = ui.painter();
+                        let rect = ui.available_rect_before_wrap();
+
+                        painter.rect_stroke(
+                            rect,
+                            0.0,
+                            egui::Stroke::new(2.0f32, egui::Color32::WHITE),
+                            egui::StrokeKind::Outside,
+                        );
+                        painter.rect_stroke(
+                            rect.expand(4.0),
+                            0.0,
+                            egui::Stroke::new(1.0f32, egui::Color32::WHITE),
+                            egui::StrokeKind::Outside,
+                        );
+
+                        ui.horizontal(|ui| {
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
+                                egui::Frame::new()
+                                    .inner_margin(egui::Margin::same(MARGIN as i8))
+                                    .show(ui, |ui| {
+                                        let rect = ui.available_rect_before_wrap();
+
+                                        ui.set_min_size(egui::vec2(
+                                            rect.width() - REG_PANEL_WIDTH,
+                                            0.0,
+                                        ));
+
+                                        {
+                                            let debug = self.debugger.as_mut().unwrap();
+                                            let emu = debug.emulator.read().unwrap();
+                                            let pc = emu.dmg.sm83.pc();
+                                            let may_pc_instr =
+                                                debug.state.disassemble_cache.get(&pc);
+                                            if may_pc_instr.is_none() {
+                                                let instr =
+                                                    psy::arch::sm83::decode(emu.dmg.mc.read(pc));
+                                                debug.state.disassemble_cache.insert(pc, instr);
+                                            };
+                                        }
+
+                                        ui.vertical(|ui| {
+                                            ui.horizontal(|ui| {
+                                                if ui.button("Step").clicked() {
+                                                    let mut shared_state = self
+                                                        .debugger
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .emulator
+                                                        .write()
+                                                        .unwrap();
+                                                    shared_state.step_control =
+                                                        StepControl::NextStep;
+                                                }
+                                                if ui.button("Run").clicked() {
+                                                    let mut shared_state = self
+                                                        .debugger
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .emulator
+                                                        .write()
+                                                        .unwrap();
+                                                    shared_state.step_control = StepControl::Run;
+                                                }
+                                            });
+
+                                            egui::Grid::new("grid_instructions")
+                                                .min_col_width(0.0)
+                                                .show(ui, |ui| {
+                                                    let emu = self
+                                                        .debugger
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .emulator
+                                                        .read()
+                                                        .unwrap();
+                                                    let pc = emu.dmg.sm83.pc();
+
+                                                    let emu = self
+                                                        .debugger
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .emulator
+                                                        .read()
+                                                        .unwrap();
+                                                    let rom = emu.dmg.mc.rom.as_ref().expect("ROM");
+
+                                                    let instr_before = self
+                                                        .n_instr(pc, 5, false /*backward*/);
+                                                    let instr_after =
+                                                        self.n_instr(pc, 5, true /*forward*/);
+
+                                                    for loc_instr in instr_before {
+                                                        instr_row(
+                                                            ui,
+                                                            loc_instr.0,
+                                                            false,
+                                                            rom,
+                                                            loc_instr.1,
+                                                        );
+                                                    }
+
+                                                    self.instr_row_from_state(ui, pc, true, rom);
+
+                                                    for loc_instr in instr_after {
+                                                        instr_row(
+                                                            ui,
+                                                            loc_instr.0,
+                                                            false,
+                                                            rom,
+                                                            loc_instr.1,
+                                                        );
+                                                    }
+                                                });
+                                        });
+                                    });
+
+                                egui::Frame::new()
+                                    .inner_margin(egui::Margin::same(MARGIN as i8))
+                                    .show(ui, |ui| {
+                                        ui.set_min_size(egui::vec2(REG_PANEL_WIDTH, rect.height()));
+
+                                        let rect = ui.available_rect_before_wrap();
+
+                                        // left border
+                                        let painter = ui.painter();
+                                        let left_border_rect = egui::Rect::from_min_max(
+                                            egui::pos2(rect.min.x, rect.min.y - MARGIN),
+                                            egui::pos2(rect.min.x + 4.0, rect.max.y - MARGIN),
+                                        );
+
+                                        painter.rect_filled(
+                                            left_border_rect,
+                                            0.0,
+                                            egui::Color32::WHITE,
+                                        );
+                                        ui.add_space(9.0);
+
+                                        ui.vertical(|ui| {
+                                            ui.horizontal(|ui| {
+                                                if ui
+                                                    .add(Button::selectable(
+                                                        self.debugger
+                                                            .as_ref()
+                                                            .unwrap()
+                                                            .state
+                                                            .reg_value_display
+                                                            == RegValueDisplay::Hex,
+                                                        "Hex",
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    self.debugger
+                                                        .as_mut()
+                                                        .unwrap()
+                                                        .state
+                                                        .reg_value_display = RegValueDisplay::Hex
+                                                };
+                                                if ui
+                                                    .add(Button::selectable(
+                                                        self.debugger
+                                                            .as_ref()
+                                                            .unwrap()
+                                                            .state
+                                                            .reg_value_display
+                                                            == RegValueDisplay::Binary,
+                                                        "Bin",
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    self.debugger
+                                                        .as_mut()
+                                                        .unwrap()
+                                                        .state
+                                                        .reg_value_display = RegValueDisplay::Binary
+                                                };
+                                                if ui
+                                                    .add(Button::selectable(
+                                                        self.debugger
+                                                            .as_ref()
+                                                            .unwrap()
+                                                            .state
+                                                            .reg_value_display
+                                                            == RegValueDisplay::Decimal,
+                                                        "Dec",
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    self.debugger
+                                                        .as_mut()
+                                                        .unwrap()
+                                                        .state
+                                                        .reg_value_display =
+                                                        RegValueDisplay::Decimal
+                                                };
+                                            });
+
+                                            let emu = self
+                                                .debugger
+                                                .as_ref()
+                                                .unwrap()
+                                                .emulator
+                                                .read()
+                                                .unwrap();
+                                            egui::Grid::new("grid_registers").show(ui, |ui| {
+                                                ui.label("a");
+                                                ui.label(self.val_u8(emu.dmg.sm83.reg.a));
+                                                ui.end_row();
+
+                                                ui.label("b");
+                                                ui.label(self.val_u8(emu.dmg.sm83.reg.b));
+                                                ui.end_row();
+                                                ui.label("c");
+                                                ui.label(self.val_u8(emu.dmg.sm83.reg.c));
+                                                ui.end_row();
+                                                ui.label("bc");
+                                                ui.label(self.val_u16(emu.dmg.sm83.reg.bc()));
+                                                ui.end_row();
+
+                                                ui.label("d");
+                                                ui.label(self.val_u8(emu.dmg.sm83.reg.d));
+                                                ui.end_row();
+                                                ui.label("e");
+                                                ui.label(self.val_u8(emu.dmg.sm83.reg.e));
+                                                ui.end_row();
+                                                ui.label("de");
+                                                ui.label(self.val_u16(emu.dmg.sm83.reg.de()));
+                                                ui.end_row();
+
+                                                ui.label("h");
+                                                ui.label(self.val_u8(emu.dmg.sm83.reg.h));
+                                                ui.end_row();
+                                                ui.label("l");
+                                                ui.label(self.val_u8(emu.dmg.sm83.reg.l));
+                                                ui.end_row();
+                                                ui.label("hl");
+                                                ui.label(self.val_u16(emu.dmg.sm83.reg.hl()));
+                                                ui.end_row();
+
+                                                ui.label("sp");
+                                                ui.label(self.val_u16(emu.dmg.sm83.reg.sp));
+                                                ui.end_row();
+
+                                                ui.label("pc");
+                                                ui.label(self.val_u16(emu.dmg.sm83.reg.pc));
+                                                ui.end_row();
+
+                                                ui.label("z");
+                                                ui.label(flag(emu.dmg.sm83.reg.f, sm83::Z));
+                                                ui.end_row();
+
+                                                ui.label("n");
+                                                ui.label(flag(emu.dmg.sm83.reg.f, sm83::N));
+                                                ui.end_row();
+
+                                                ui.label("h");
+                                                ui.label(flag(emu.dmg.sm83.reg.f, sm83::H));
+                                                ui.end_row();
+
+                                                ui.label("c");
+                                                ui.label(flag(emu.dmg.sm83.reg.f, sm83::C));
+                                                ui.end_row();
+                                            });
+                                        });
+                                    });
+                            });
+                        });
+                    });
+            });
+        }
+    }
+
     /// Find n confirmed instructions from the disassemble execution cache.
     /// The Vec returned will always be of size n, places where no instructions
     /// could be found will be filled with None,
@@ -131,10 +408,10 @@ impl SomaApp {
             for z in 0..3 {
                 // a SM83 instruction can be max 3 bytes long
                 let may_instr = self
-                    .debug
+                    .debugger
                     .as_ref()
                     .expect("debug")
-                    .debugger_state
+                    .state
                     .disassemble_cache
                     .get(&((pc + (z * dir)) as u16));
                 if let Some(instr) = may_instr {
@@ -152,15 +429,14 @@ impl SomaApp {
             result.reverse();
         }
         result
-    }*/
+    }
 
-    /*
     fn instr_row_from_state(&self, ui: &mut egui::Ui, loc: u16, mark_halt: bool, rom: &ROM) {
         let may_instr = self
-            .debug
+            .debugger
             .as_ref()
-            .unwrap()
-            .debugger_state
+            .expect("debugger")
+            .state
             .disassemble_cache
             .get(&loc);
         if let Some(instr) = may_instr {
@@ -168,17 +444,10 @@ impl SomaApp {
         } else {
             instr_row(ui, loc, mark_halt, rom, None);
         };
-    }*/
+    }
 
-    /*
     fn val_u8(&self, v: u8) -> String {
-        match self
-            .debug
-            .as_ref()
-            .unwrap()
-            .debugger_state
-            .reg_value_display
-        {
+        match self.debugger.as_ref().unwrap().state.reg_value_display {
             RegValueDisplay::Binary => {
                 format!("{:08b}", v)
             }
@@ -189,17 +458,10 @@ impl SomaApp {
                 format!("{}", v)
             }
         }
-    }*/
+    }
 
-    /*
     fn val_u16(&self, v: u16) -> String {
-        match self
-            .debug
-            .as_ref()
-            .unwrap()
-            .debugger_state
-            .reg_value_display
-        {
+        match self.debugger.as_ref().unwrap().state.reg_value_display {
             RegValueDisplay::Binary => {
                 format!("{:016b}", v)
             }
@@ -210,7 +472,7 @@ impl SomaApp {
                 format!("{}", v)
             }
         }
-    }*/
+    }
 }
 
 const REG_PANEL_WIDTH: f32 = 210.0;
@@ -243,366 +505,7 @@ impl eframe::App for SomaApp {
                 });
             });
 
-            /*
-            if self.debug.is_some() {
-                Panel::bottom("bottom").show_inside(ui, |ui| {
-                    egui::Frame::new()
-                        .outer_margin(egui::Margin::same(5))
-                        .show(ui, |ui| {
-                            let painter = ui.painter();
-                            let rect = ui.available_rect_before_wrap();
-
-                            painter.rect_stroke(
-                                //rect.expand(4.0),
-                                rect,
-                                0.0,
-                                egui::Stroke::new(2.0, egui::Color32::WHITE),
-                                egui::StrokeKind::Outside,
-                            );
-                            painter.rect_stroke(
-                                rect.expand(4.0),
-                                0.0,
-                                egui::Stroke::new(1.0, egui::Color32::WHITE),
-                                egui::StrokeKind::Outside,
-                            );
-
-                            ui.horizontal(|ui| {
-                                ui.with_layout(
-                                    egui::Layout::left_to_right(egui::Align::TOP),
-                                    |ui| {
-                                        egui::Frame::new()
-                                            .inner_margin(egui::Margin::same(MARGIN as i8))
-                                            .show(ui, |ui| {
-                                                let rect = ui.available_rect_before_wrap();
-
-                                                ui.set_min_size(egui::vec2(
-                                                    rect.width() - REG_PANEL_WIDTH,
-                                                    0.0,
-                                                ));
-
-                                                {
-                                                    let debug = self.debug.as_mut().unwrap();
-                                                    let shared_state =
-                                                        debug.shared_state.read().unwrap();
-                                                    let pc = shared_state.register.pc;
-                                                    let may_pc_instr = debug
-                                                        .debugger_state
-                                                        .disassemble_cache
-                                                        .get(&pc);
-                                                    if may_pc_instr.is_none() {
-                                                        let instr = psy::arch::sm83::decode(
-                                                            debug.rom.read_u8(pc as usize),
-                                                        );
-                                                        debug
-                                                            .debugger_state
-                                                            .disassemble_cache
-                                                            .insert(pc, instr);
-                                                    };
-                                                }
-
-                                                ui.vertical(|ui| {
-                                                    ui.horizontal(|ui| {
-                                                        if ui.button("Step").clicked() {
-                                                            let mut shared_state = self
-                                                                .debug
-                                                                .as_ref()
-                                                                .unwrap()
-                                                                .shared_state
-                                                                .write()
-                                                                .unwrap();
-                                                            shared_state.step_control =
-                                                                StepControl::NextStep;
-                                                        }
-                                                        if ui.button("Run").clicked() {
-                                                            let mut shared_state = self
-                                                                .debug
-                                                                .as_ref()
-                                                                .unwrap()
-                                                                .shared_state
-                                                                .write()
-                                                                .unwrap();
-                                                            shared_state.step_control =
-                                                                StepControl::Run;
-                                                        }
-                                                    });
-
-                                                    egui::Grid::new("grid_instructions")
-                                                        .min_col_width(0.0)
-                                                        .show(ui, |ui| {
-                                                            let shared_state = self
-                                                                .debug
-                                                                .as_ref()
-                                                                .unwrap()
-                                                                .shared_state
-                                                                .read()
-                                                                .unwrap();
-                                                            let pc = shared_state.register.pc;
-
-                                                            let instr_before = self.n_instr(
-                                                                pc, 5, false, /*backward*/
-                                                            );
-                                                            let instr_after = self.n_instr(
-                                                                pc, 5, true, /*forward*/
-                                                            );
-
-                                                            for loc_instr in instr_before {
-                                                                instr_row(
-                                                                    ui,
-                                                                    loc_instr.0,
-                                                                    false,
-                                                                    &self
-                                                                        .debug
-                                                                        .as_ref()
-                                                                        .unwrap()
-                                                                        .rom,
-                                                                    loc_instr.1,
-                                                                );
-                                                            }
-
-                                                            self.instr_row_from_state(
-                                                                ui,
-                                                                pc,
-                                                                true,
-                                                                &self.debug.as_ref().unwrap().rom,
-                                                            );
-
-                                                            for loc_instr in instr_after {
-                                                                instr_row(
-                                                                    ui,
-                                                                    loc_instr.0,
-                                                                    false,
-                                                                    &self
-                                                                        .debug
-                                                                        .as_ref()
-                                                                        .unwrap()
-                                                                        .rom,
-                                                                    loc_instr.1,
-                                                                );
-                                                            }
-                                                        });
-                                                });
-                                            });
-
-                                        egui::Frame::new()
-                                            .inner_margin(egui::Margin::same(MARGIN as i8))
-                                            .show(ui, |ui| {
-                                                ui.set_min_size(egui::vec2(
-                                                    REG_PANEL_WIDTH,
-                                                    rect.height(),
-                                                ));
-
-                                                let rect = ui.available_rect_before_wrap();
-
-                                                // left border
-                                                let painter = ui.painter();
-                                                let left_border_rect = egui::Rect::from_min_max(
-                                                    egui::pos2(rect.min.x, rect.min.y - MARGIN),
-                                                    egui::pos2(
-                                                        rect.min.x + 4.0,
-                                                        rect.max.y - MARGIN,
-                                                    ),
-                                                );
-
-                                                painter.rect_filled(
-                                                    left_border_rect,
-                                                    0.0,
-                                                    egui::Color32::WHITE,
-                                                );
-                                                ui.add_space(9.0);
-
-                                                ui.vertical(|ui| {
-                                                    ui.horizontal(|ui| {
-                                                        if ui
-                                                            .add(Button::selectable(
-                                                                self.debug
-                                                                    .as_ref()
-                                                                    .unwrap()
-                                                                    .debugger_state
-                                                                    .reg_value_display
-                                                                    == RegValueDisplay::Hex,
-                                                                "Hex",
-                                                            ))
-                                                            .clicked()
-                                                        {
-                                                            self.debug
-                                                                .as_mut()
-                                                                .unwrap()
-                                                                .debugger_state
-                                                                .reg_value_display =
-                                                                RegValueDisplay::Hex
-                                                        };
-                                                        if ui
-                                                            .add(Button::selectable(
-                                                                self.debug
-                                                                    .as_ref()
-                                                                    .unwrap()
-                                                                    .debugger_state
-                                                                    .reg_value_display
-                                                                    == RegValueDisplay::Binary,
-                                                                "Bin",
-                                                            ))
-                                                            .clicked()
-                                                        {
-                                                            self.debug
-                                                                .as_mut()
-                                                                .unwrap()
-                                                                .debugger_state
-                                                                .reg_value_display =
-                                                                RegValueDisplay::Binary
-                                                        };
-                                                        if ui
-                                                            .add(Button::selectable(
-                                                                self.debug
-                                                                    .as_ref()
-                                                                    .unwrap()
-                                                                    .debugger_state
-                                                                    .reg_value_display
-                                                                    == RegValueDisplay::Decimal,
-                                                                "Dec",
-                                                            ))
-                                                            .clicked()
-                                                        {
-                                                            self.debug
-                                                                .as_mut()
-                                                                .unwrap()
-                                                                .debugger_state
-                                                                .reg_value_display =
-                                                                RegValueDisplay::Decimal
-                                                        };
-                                                    });
-
-                                                    let shared_state = self
-                                                        .debug
-                                                        .as_ref()
-                                                        .unwrap()
-                                                        .shared_state
-                                                        .read()
-                                                        .unwrap();
-                                                    egui::Grid::new("grid_registers").show(
-                                                        ui,
-                                                        |ui| {
-                                                            ui.label("a");
-                                                            ui.label(
-                                                                self.val_u8(
-                                                                    shared_state.register.a,
-                                                                ),
-                                                            );
-                                                            ui.end_row();
-
-                                                            ui.label("b");
-                                                            ui.label(
-                                                                self.val_u8(
-                                                                    shared_state.register.b,
-                                                                ),
-                                                            );
-                                                            ui.end_row();
-                                                            ui.label("c");
-                                                            ui.label(
-                                                                self.val_u8(
-                                                                    shared_state.register.c,
-                                                                ),
-                                                            );
-                                                            ui.end_row();
-                                                            ui.label("bc");
-                                                            ui.label(self.val_u16(
-                                                                shared_state.register.bc(),
-                                                            ));
-                                                            ui.end_row();
-
-                                                            ui.label("d");
-                                                            ui.label(
-                                                                self.val_u8(
-                                                                    shared_state.register.d,
-                                                                ),
-                                                            );
-                                                            ui.end_row();
-                                                            ui.label("e");
-                                                            ui.label(
-                                                                self.val_u8(
-                                                                    shared_state.register.e,
-                                                                ),
-                                                            );
-                                                            ui.end_row();
-                                                            ui.label("de");
-                                                            ui.label(self.val_u16(
-                                                                shared_state.register.de(),
-                                                            ));
-                                                            ui.end_row();
-
-                                                            ui.label("h");
-                                                            ui.label(
-                                                                self.val_u8(
-                                                                    shared_state.register.h,
-                                                                ),
-                                                            );
-                                                            ui.end_row();
-                                                            ui.label("l");
-                                                            ui.label(
-                                                                self.val_u8(
-                                                                    shared_state.register.l,
-                                                                ),
-                                                            );
-                                                            ui.end_row();
-                                                            ui.label("hl");
-                                                            ui.label(self.val_u16(
-                                                                shared_state.register.hl(),
-                                                            ));
-                                                            ui.end_row();
-
-                                                            ui.label("sp");
-                                                            ui.label(
-                                                                self.val_u16(
-                                                                    shared_state.register.sp,
-                                                                ),
-                                                            );
-                                                            ui.end_row();
-
-                                                            ui.label("pc");
-                                                            ui.label(
-                                                                self.val_u16(
-                                                                    shared_state.register.pc,
-                                                                ),
-                                                            );
-                                                            ui.end_row();
-
-                                                            ui.label("z");
-                                                            ui.label(flag(
-                                                                shared_state.register.f,
-                                                                sm83::Z,
-                                                            ));
-                                                            ui.end_row();
-
-                                                            ui.label("n");
-                                                            ui.label(flag(
-                                                                shared_state.register.f,
-                                                                sm83::N,
-                                                            ));
-                                                            ui.end_row();
-
-                                                            ui.label("h");
-                                                            ui.label(flag(
-                                                                shared_state.register.f,
-                                                                sm83::H,
-                                                            ));
-                                                            ui.end_row();
-
-                                                            ui.label("c");
-                                                            ui.label(flag(
-                                                                shared_state.register.f,
-                                                                sm83::C,
-                                                            ));
-                                                            ui.end_row();
-                                                        },
-                                                    );
-                                                });
-                                            });
-                                    },
-                                );
-                            });
-                        });
-                });
-            }
-            */
+            self.render_asm_view(ui);
         });
     }
 }
