@@ -174,7 +174,7 @@ fn handle_next_command<'a>(
             Command::VMustReplyEmpty => Packet::ack(""),
             Command::H(_) => Packet::ack("OK"), //Message::new_ack("+$OK#9a"), // only one thread in soma, nothing to prepare. just ack
             Command::G => {
-                let dmg = emulation.dmg.read().unwrap();
+                let dmg = emulation.dmg_read_lock();
                 let pc = dmg.sm83.reg.pc.to_le_bytes();
                 let sp = dmg.sm83.reg.sp.to_le_bytes();
                 Packet::ack(&format!(
@@ -197,7 +197,7 @@ fn handle_next_command<'a>(
 }
 
 fn read_memory(emulation: &Arc<Emulation>, range: MemoryRange) -> Packet {
-    let dmg = emulation.dmg.read().unwrap();
+    let dmg = emulation.dmg_read_lock();
     let mut result = String::new();
     for p in range.addr..(range.addr + range.length) {
         println!("!!! p = {:x}", p);

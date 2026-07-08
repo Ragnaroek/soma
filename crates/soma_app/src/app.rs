@@ -1,4 +1,4 @@
-use std::sync::RwLock;
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{collections::HashMap, sync::Arc};
 
 use egui::{Button, CentralPanel, FontDefinitions, Panel, ScrollArea};
@@ -15,8 +15,33 @@ pub struct FrameBuffer {
 }
 
 pub struct Emulation {
-    pub dmg: RwLock<DMG<Instant>>,
-    pub step_control: RwLock<StepControl>,
+    dmg: RwLock<DMG<Instant>>,
+    step_control: RwLock<StepControl>,
+}
+
+impl Emulation {
+    pub fn new(dmg: DMG<Instant>, init_step: StepControl) -> Emulation {
+        Emulation {
+            dmg: RwLock::new(dmg),
+            step_control: RwLock::new(init_step),
+        }
+    }
+
+    pub fn dmg_write_lock<'a>(&'a self) -> RwLockWriteGuard<'a, DMG<Instant>> {
+        self.dmg.write().expect("dmg write lock")
+    }
+
+    pub fn dmg_read_lock<'a>(&'a self) -> RwLockReadGuard<'a, DMG<Instant>> {
+        self.dmg.read().expect("dmg read lock")
+    }
+
+    pub fn step_control(&self) -> StepControl {
+        *self.step_control.read().expect("step_control lock")
+    }
+
+    pub fn set_step_control(&self, step: StepControl) {
+        *self.step_control.write().expect("step_control lock") = step;
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -97,7 +122,7 @@ impl SomaApp {
                                 egui::FontId::new(8.0, egui::FontFamily::Proportional),
                             );
 
-                            let dmg = debugger.emulator.dmg.read().expect("emu");
+                            let dmg = debugger.emulator.dmg_read_lock();
                             for x in 0..32 {
                                 for y in 0..32 {
                                     ui.label(format!(
@@ -149,7 +174,7 @@ impl SomaApp {
 
                                         {
                                             let debug = self.debugger.as_mut().unwrap();
-                                            let dmg = debug.emulator.dmg.read().unwrap();
+                                            let dmg = debug.emulator.dmg_read_lock();
                                             let pc = dmg.sm83.pc();
                                             let may_pc_instr =
                                                 debug.state.disassemble_cache.get(&pc);
@@ -163,28 +188,18 @@ impl SomaApp {
                                         ui.vertical(|ui| {
                                             ui.horizontal(|ui| {
                                                 if ui.button("Step").clicked() {
-                                                    println!("!!! step clicked");
-                                                    let mut step_control = self
-                                                        .debugger
+                                                    self.debugger
                                                         .as_ref()
                                                         .unwrap()
                                                         .emulator
-                                                        .step_control
-                                                        .write()
-                                                        .unwrap();
-                                                    println!("!! step");
-                                                    *step_control = StepControl::NextStep;
+                                                        .set_step_control(StepControl::NextStep);
                                                 }
                                                 if ui.button("Run").clicked() {
-                                                    let mut step_control = self
-                                                        .debugger
+                                                    self.debugger
                                                         .as_ref()
                                                         .unwrap()
                                                         .emulator
-                                                        .step_control
-                                                        .write()
-                                                        .unwrap();
-                                                    *step_control = StepControl::Run;
+                                                        .set_step_control(StepControl::Run);
                                                 }
                                             });
 
@@ -196,9 +211,7 @@ impl SomaApp {
                                                         .as_ref()
                                                         .unwrap()
                                                         .emulator
-                                                        .dmg
-                                                        .read()
-                                                        .unwrap();
+                                                        .dmg_read_lock();
                                                     let pc = dmg.sm83.pc();
                                                     let rom = dmg.mc.rom.as_ref().expect("ROM");
 
@@ -317,9 +330,7 @@ impl SomaApp {
                                                 .as_ref()
                                                 .unwrap()
                                                 .emulator
-                                                .dmg
-                                                .read()
-                                                .unwrap();
+                                                .dmg_read_lock();
                                             egui::Grid::new("grid_registers").show(ui, |ui| {
                                                 ui.label("a");
                                                 ui.label(self.val_u8(dmg.sm83.reg.a));
