@@ -1,7 +1,7 @@
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{collections::HashMap, sync::Arc};
 
-use egui::{Button, CentralPanel, FontDefinitions, Panel, ScrollArea};
+use egui::{Button, FontDefinitions, Frame, Pos2, Rect, ScrollArea};
 use psy::arch::sm83::Sm83Instr;
 
 use libsoma::dmg::DMG;
@@ -106,296 +106,246 @@ impl SomaApp {
         SomaApp { fb, debugger }
     }
 
-    fn render_memory_view(&self, ui: &mut egui::Ui) {
+    fn render_memory_view(&self, ui: &mut egui::Ui, width: f32, height: f32) {
         if let Some(debugger) = self.debugger.as_ref() {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.add(Button::selectable(true, "Tile Map"));
-                });
-                ScrollArea::vertical().show(ui, |ui| {
-                    egui::Grid::new("grid_tilemap")
-                        .min_col_width(0.0)
-                        .min_row_height(0.0)
-                        .show(ui, |ui| {
-                            ui.style_mut().text_styles.insert(
-                                egui::TextStyle::Body,
-                                egui::FontId::new(8.0, egui::FontFamily::Proportional),
-                            );
+            Frame::new().show(ui, |ui| {
+                ui.set_width(width);
+                ui.set_height(height);
 
-                            let dmg = debugger.emulator.dmg_read_lock();
-                            for x in 0..32 {
-                                for y in 0..32 {
-                                    ui.label(format!(
-                                        "{:03}\u{2009}",
-                                        dmg.mc.read(0x9800 + y * 32 + x)
-                                    ));
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.add(Button::selectable(true, "Tile Map"));
+                    });
+                    ScrollArea::vertical().show(ui, |ui| {
+                        egui::Grid::new("grid_tilemap")
+                            .min_col_width(0.0)
+                            .min_row_height(0.0)
+                            .show(ui, |ui| {
+                                ui.style_mut().text_styles.insert(
+                                    egui::TextStyle::Body,
+                                    egui::FontId::new(8.0, egui::FontFamily::Proportional),
+                                );
+
+                                let dmg = debugger.emulator.dmg_read_lock();
+                                for x in 0..32 {
+                                    for y in 0..32 {
+                                        ui.label(format!(
+                                            "{:03}\u{2009}",
+                                            dmg.mc.read(0x9800 + y * 32 + x)
+                                        ));
+                                    }
+                                    ui.end_row();
                                 }
-                                ui.end_row();
-                            }
-                        });
+                            });
+                    });
                 });
             });
         }
     }
 
-    fn render_asm_view(&mut self, ui: &mut egui::Ui) {
+    fn render_asm_view(&mut self, ui: &mut egui::Ui, available_rect: Rect) {
         if self.debugger.is_some() {
-            Panel::bottom("bottom").show_inside(ui, |ui| {
-                egui::Frame::new()
-                    .outer_margin(egui::Margin::same(5))
-                    .show(ui, |ui| {
-                        let painter = ui.painter();
-                        let rect = ui.available_rect_before_wrap();
+            let painter = ui.painter();
+            painter.rect_stroke(
+                available_rect,
+                0.0,
+                egui::Stroke::new(2.0f32, egui::Color32::WHITE),
+                egui::StrokeKind::Inside,
+            );
+            painter.rect_stroke(
+                available_rect.shrink(4.0),
+                0.0,
+                egui::Stroke::new(1.0f32, egui::Color32::WHITE),
+                egui::StrokeKind::Inside,
+            );
 
-                        painter.rect_stroke(
-                            rect,
-                            0.0,
-                            egui::Stroke::new(2.0f32, egui::Color32::WHITE),
-                            egui::StrokeKind::Outside,
-                        );
-                        painter.rect_stroke(
-                            rect.expand(4.0),
-                            0.0,
-                            egui::Stroke::new(1.0f32, egui::Color32::WHITE),
-                            egui::StrokeKind::Outside,
-                        );
+            let asm_margin = 2.0;
+            let content_area = available_rect.shrink(8.0); //4.0 + 4.0 additional margin for the content
+            let (asm_area, reg_area) = content_area
+                .split_left_right_at_x(content_area.min.x + content_area.width() - REG_PANEL_WIDTH);
+            let (button_area, asm_code_area) =
+                asm_area.split_top_bottom_at_y(asm_area.min.y + 30.0);
 
-                        ui.horizontal(|ui| {
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
-                                egui::Frame::new()
-                                    .inner_margin(egui::Margin::same(MARGIN as i8))
-                                    .show(ui, |ui| {
-                                        let rect = ui.available_rect_before_wrap();
+            // button bar
+            egui::Area::new(egui::Id::new("button_bar"))
+                .fixed_pos(button_area.min)
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        if ui.button("Step").clicked() {
+                            self.debugger
+                                .as_ref()
+                                .unwrap()
+                                .emulator
+                                .set_step_control(StepControl::NextStep);
+                        }
+                        if ui.button("Run").clicked() {
+                            self.debugger
+                                .as_ref()
+                                .unwrap()
+                                .emulator
+                                .set_step_control(StepControl::Run);
+                        }
+                    });
+                });
 
-                                        ui.set_min_size(egui::vec2(
-                                            rect.width() - REG_PANEL_WIDTH,
-                                            0.0,
-                                        ));
+            egui::Area::new(egui::Id::new("asm_code"))
+                .fixed_pos(asm_code_area.min)
+                .show(ui, |ui| {
+                    {
+                        let debug = self.debugger.as_mut().unwrap();
+                        let dmg = debug.emulator.dmg_read_lock();
+                        let pc = dmg.sm83.pc();
+                        let may_pc_instr = debug.state.disassemble_cache.get(&pc);
+                        if may_pc_instr.is_none() {
+                            let instr = psy::arch::sm83::decode(dmg.mc.read(pc));
+                            debug.state.disassemble_cache.insert(pc, instr);
+                        };
+                    }
 
-                                        {
-                                            let debug = self.debugger.as_mut().unwrap();
-                                            let dmg = debug.emulator.dmg_read_lock();
-                                            let pc = dmg.sm83.pc();
-                                            let may_pc_instr =
-                                                debug.state.disassemble_cache.get(&pc);
-                                            if may_pc_instr.is_none() {
-                                                let instr =
-                                                    psy::arch::sm83::decode(dmg.mc.read(pc));
-                                                debug.state.disassemble_cache.insert(pc, instr);
-                                            };
-                                        }
+                    ScrollArea::vertical()
+                        .max_height(asm_code_area.height())
+                        .max_width(asm_code_area.width())
+                        .show(ui, |ui| {
+                            egui::Grid::new("grid_instructions")
+                                .min_col_width(0.0)
+                                .show(ui, |ui| {
+                                    let dmg =
+                                        self.debugger.as_ref().unwrap().emulator.dmg_read_lock();
+                                    let pc = dmg.sm83.pc();
+                                    let rom = dmg.mc.rom.as_ref().expect("ROM");
 
-                                        ui.vertical(|ui| {
-                                            ui.horizontal(|ui| {
-                                                if ui.button("Step").clicked() {
-                                                    self.debugger
-                                                        .as_ref()
-                                                        .unwrap()
-                                                        .emulator
-                                                        .set_step_control(StepControl::NextStep);
-                                                }
-                                                if ui.button("Run").clicked() {
-                                                    self.debugger
-                                                        .as_ref()
-                                                        .unwrap()
-                                                        .emulator
-                                                        .set_step_control(StepControl::Run);
-                                                }
-                                            });
+                                    let instr_before = self.n_instr(pc, 5, false /*backward*/);
+                                    let instr_after = self.n_instr(pc, 5, true /*forward*/);
 
-                                            egui::Grid::new("grid_instructions")
-                                                .min_col_width(0.0)
-                                                .show(ui, |ui| {
-                                                    let dmg = self
-                                                        .debugger
-                                                        .as_ref()
-                                                        .unwrap()
-                                                        .emulator
-                                                        .dmg_read_lock();
-                                                    let pc = dmg.sm83.pc();
-                                                    let rom = dmg.mc.rom.as_ref().expect("ROM");
+                                    for loc_instr in instr_before {
+                                        instr_row(ui, loc_instr.0, false, rom, loc_instr.1);
+                                    }
 
-                                                    let instr_before = self
-                                                        .n_instr(pc, 5, false /*backward*/);
-                                                    let instr_after =
-                                                        self.n_instr(pc, 5, true /*forward*/);
+                                    self.instr_row_from_state(ui, pc, true, rom);
 
-                                                    for loc_instr in instr_before {
-                                                        instr_row(
-                                                            ui,
-                                                            loc_instr.0,
-                                                            false,
-                                                            rom,
-                                                            loc_instr.1,
-                                                        );
-                                                    }
+                                    for loc_instr in instr_after {
+                                        instr_row(ui, loc_instr.0, false, rom, loc_instr.1);
+                                    }
+                                });
+                        });
+                });
 
-                                                    self.instr_row_from_state(ui, pc, true, rom);
+            let (_, reg_area_inner) = reg_area.split_left_right_at_x(reg_area.min.x + 8.0);
+            egui::Area::new(egui::Id::new("reg"))
+                .fixed_pos(reg_area.min)
+                .show(ui, |ui| {
+                    // left border
+                    let painter = ui.painter();
+                    let left_border_rect = egui::Rect::from_min_max(
+                        egui::pos2(reg_area.min.x, reg_area.min.y + 2.0 - asm_margin),
+                        egui::pos2(reg_area.min.x + 4.0, reg_area.max.y - asm_margin),
+                    );
 
-                                                    for loc_instr in instr_after {
-                                                        instr_row(
-                                                            ui,
-                                                            loc_instr.0,
-                                                            false,
-                                                            rom,
-                                                            loc_instr.1,
-                                                        );
-                                                    }
-                                                });
-                                        });
-                                    });
+                    painter.rect_filled(left_border_rect, 0.0, egui::Color32::WHITE);
 
-                                egui::Frame::new()
-                                    .inner_margin(egui::Margin::same(MARGIN as i8))
-                                    .show(ui, |ui| {
-                                        ui.set_min_size(egui::vec2(REG_PANEL_WIDTH, rect.height()));
+                    egui::Area::new(egui::Id::new("reg_inner"))
+                        .fixed_pos(reg_area_inner.min)
+                        .show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
+                                    if ui
+                                        .add(Button::selectable(
+                                            self.debugger.as_ref().unwrap().state.reg_value_display
+                                                == RegValueDisplay::Hex,
+                                            "Hex",
+                                        ))
+                                        .clicked()
+                                    {
+                                        self.debugger.as_mut().unwrap().state.reg_value_display =
+                                            RegValueDisplay::Hex
+                                    };
+                                    if ui
+                                        .add(Button::selectable(
+                                            self.debugger.as_ref().unwrap().state.reg_value_display
+                                                == RegValueDisplay::Binary,
+                                            "Bin",
+                                        ))
+                                        .clicked()
+                                    {
+                                        self.debugger.as_mut().unwrap().state.reg_value_display =
+                                            RegValueDisplay::Binary
+                                    };
+                                    if ui
+                                        .add(Button::selectable(
+                                            self.debugger.as_ref().unwrap().state.reg_value_display
+                                                == RegValueDisplay::Decimal,
+                                            "Dec",
+                                        ))
+                                        .clicked()
+                                    {
+                                        self.debugger.as_mut().unwrap().state.reg_value_display =
+                                            RegValueDisplay::Decimal
+                                    };
+                                });
 
-                                        let rect = ui.available_rect_before_wrap();
+                                let dmg = self.debugger.as_ref().unwrap().emulator.dmg_read_lock();
+                                egui::Grid::new("grid_registers").show(ui, |ui| {
+                                    ui.label("a");
+                                    ui.label(self.val_u8(dmg.sm83.reg.a));
+                                    ui.end_row();
 
-                                        // left border
-                                        let painter = ui.painter();
-                                        let left_border_rect = egui::Rect::from_min_max(
-                                            egui::pos2(rect.min.x, rect.min.y - MARGIN),
-                                            egui::pos2(rect.min.x + 4.0, rect.max.y - MARGIN),
-                                        );
+                                    ui.label("b");
+                                    ui.label(self.val_u8(dmg.sm83.reg.b));
+                                    ui.end_row();
+                                    ui.label("c");
+                                    ui.label(self.val_u8(dmg.sm83.reg.c));
+                                    ui.end_row();
+                                    ui.label("bc");
+                                    ui.label(self.val_u16(dmg.sm83.reg.bc()));
+                                    ui.end_row();
 
-                                        painter.rect_filled(
-                                            left_border_rect,
-                                            0.0,
-                                            egui::Color32::WHITE,
-                                        );
-                                        ui.add_space(9.0);
+                                    ui.label("d");
+                                    ui.label(self.val_u8(dmg.sm83.reg.d));
+                                    ui.end_row();
+                                    ui.label("e");
+                                    ui.label(self.val_u8(dmg.sm83.reg.e));
+                                    ui.end_row();
+                                    ui.label("de");
+                                    ui.label(self.val_u16(dmg.sm83.reg.de()));
+                                    ui.end_row();
 
-                                        ui.vertical(|ui| {
-                                            ui.horizontal(|ui| {
-                                                if ui
-                                                    .add(Button::selectable(
-                                                        self.debugger
-                                                            .as_ref()
-                                                            .unwrap()
-                                                            .state
-                                                            .reg_value_display
-                                                            == RegValueDisplay::Hex,
-                                                        "Hex",
-                                                    ))
-                                                    .clicked()
-                                                {
-                                                    self.debugger
-                                                        .as_mut()
-                                                        .unwrap()
-                                                        .state
-                                                        .reg_value_display = RegValueDisplay::Hex
-                                                };
-                                                if ui
-                                                    .add(Button::selectable(
-                                                        self.debugger
-                                                            .as_ref()
-                                                            .unwrap()
-                                                            .state
-                                                            .reg_value_display
-                                                            == RegValueDisplay::Binary,
-                                                        "Bin",
-                                                    ))
-                                                    .clicked()
-                                                {
-                                                    self.debugger
-                                                        .as_mut()
-                                                        .unwrap()
-                                                        .state
-                                                        .reg_value_display = RegValueDisplay::Binary
-                                                };
-                                                if ui
-                                                    .add(Button::selectable(
-                                                        self.debugger
-                                                            .as_ref()
-                                                            .unwrap()
-                                                            .state
-                                                            .reg_value_display
-                                                            == RegValueDisplay::Decimal,
-                                                        "Dec",
-                                                    ))
-                                                    .clicked()
-                                                {
-                                                    self.debugger
-                                                        .as_mut()
-                                                        .unwrap()
-                                                        .state
-                                                        .reg_value_display =
-                                                        RegValueDisplay::Decimal
-                                                };
-                                            });
+                                    ui.label("h");
+                                    ui.label(self.val_u8(dmg.sm83.reg.h));
+                                    ui.end_row();
+                                    ui.label("l");
+                                    ui.label(self.val_u8(dmg.sm83.reg.l));
+                                    ui.end_row();
+                                    ui.label("hl");
+                                    ui.label(self.val_u16(dmg.sm83.reg.hl()));
+                                    ui.end_row();
 
-                                            let dmg = self
-                                                .debugger
-                                                .as_ref()
-                                                .unwrap()
-                                                .emulator
-                                                .dmg_read_lock();
-                                            egui::Grid::new("grid_registers").show(ui, |ui| {
-                                                ui.label("a");
-                                                ui.label(self.val_u8(dmg.sm83.reg.a));
-                                                ui.end_row();
+                                    ui.label("sp");
+                                    ui.label(self.val_u16(dmg.sm83.reg.sp));
+                                    ui.end_row();
 
-                                                ui.label("b");
-                                                ui.label(self.val_u8(dmg.sm83.reg.b));
-                                                ui.end_row();
-                                                ui.label("c");
-                                                ui.label(self.val_u8(dmg.sm83.reg.c));
-                                                ui.end_row();
-                                                ui.label("bc");
-                                                ui.label(self.val_u16(dmg.sm83.reg.bc()));
-                                                ui.end_row();
+                                    ui.label("pc");
+                                    ui.label(self.val_u16(dmg.sm83.reg.pc));
+                                    ui.end_row();
 
-                                                ui.label("d");
-                                                ui.label(self.val_u8(dmg.sm83.reg.d));
-                                                ui.end_row();
-                                                ui.label("e");
-                                                ui.label(self.val_u8(dmg.sm83.reg.e));
-                                                ui.end_row();
-                                                ui.label("de");
-                                                ui.label(self.val_u16(dmg.sm83.reg.de()));
-                                                ui.end_row();
+                                    ui.label("z");
+                                    ui.label(flag(dmg.sm83.reg.f, sm83::Z));
+                                    ui.end_row();
 
-                                                ui.label("h");
-                                                ui.label(self.val_u8(dmg.sm83.reg.h));
-                                                ui.end_row();
-                                                ui.label("l");
-                                                ui.label(self.val_u8(dmg.sm83.reg.l));
-                                                ui.end_row();
-                                                ui.label("hl");
-                                                ui.label(self.val_u16(dmg.sm83.reg.hl()));
-                                                ui.end_row();
+                                    ui.label("n");
+                                    ui.label(flag(dmg.sm83.reg.f, sm83::N));
+                                    ui.end_row();
 
-                                                ui.label("sp");
-                                                ui.label(self.val_u16(dmg.sm83.reg.sp));
-                                                ui.end_row();
+                                    ui.label("h");
+                                    ui.label(flag(dmg.sm83.reg.f, sm83::H));
+                                    ui.end_row();
 
-                                                ui.label("pc");
-                                                ui.label(self.val_u16(dmg.sm83.reg.pc));
-                                                ui.end_row();
-
-                                                ui.label("z");
-                                                ui.label(flag(dmg.sm83.reg.f, sm83::Z));
-                                                ui.end_row();
-
-                                                ui.label("n");
-                                                ui.label(flag(dmg.sm83.reg.f, sm83::N));
-                                                ui.end_row();
-
-                                                ui.label("h");
-                                                ui.label(flag(dmg.sm83.reg.f, sm83::H));
-                                                ui.end_row();
-
-                                                ui.label("c");
-                                                ui.label(flag(dmg.sm83.reg.f, sm83::C));
-                                                ui.end_row();
-                                            });
-                                        });
-                                    });
+                                    ui.label("c");
+                                    ui.label(flag(dmg.sm83.reg.f, sm83::C));
+                                    ui.end_row();
+                                });
                             });
                         });
-                    });
-            });
+                });
         }
     }
 
@@ -484,37 +434,65 @@ impl SomaApp {
 }
 
 const REG_PANEL_WIDTH: f32 = 210.0;
+const DISPLAY_HEIGHT: f32 = 256.0;
+const DISPLAY_WIDTH: f32 = 256.0;
 const MARGIN: f32 = 5.0;
 
 impl eframe::App for SomaApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        CentralPanel::default().show_inside(ui, |ui| {
-            // UI parts (screen + debug info)
-            ui.horizontal(|ui| {
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
-                    let fb = self.fb.read().unwrap();
+        let screen_size = ui.ctx().content_rect();
 
-                    if fb.needs_update {
-                        let image = egui::ColorImage::from_rgb(
-                            [256, 256], /*[dmg::RESOLUTION_X, dmg::RESOLUTION_Y]*/
-                            &fb.buffer,
-                        );
-                        let texture_handle =
-                            ui.load_texture("frame", image, egui::TextureOptions::default());
-                        ui.image(&texture_handle);
+        //let painter = ui.painter();
 
-                        // TODO reset needs_update (rename to dirty) if the fb was converted and
-                        // cache the image.
+        egui::Area::new(egui::Id::new("display"))
+            .fixed_pos(egui::pos2(0.0, 0.0))
+            .show(ui, |ui| {
+                let fb = self.fb.read().unwrap();
 
-                        ui.request_repaint();
-                    }
+                if fb.needs_update {
+                    let image = egui::ColorImage::from_rgb(
+                        [DISPLAY_WIDTH as usize, DISPLAY_HEIGHT as usize],
+                        &fb.buffer,
+                    );
+                    let texture_handle =
+                        ui.load_texture("frame", image, egui::TextureOptions::default());
+                    ui.image(&texture_handle);
 
-                    self.render_memory_view(ui);
-                });
+                    // TODO reset needs_update (rename to dirty) if the fb was converted and
+                    // cache the image.
+
+                    ui.request_repaint();
+                }
             });
 
-            self.render_asm_view(ui);
-        });
+        let tile_height = DISPLAY_HEIGHT;
+        let tile_width = screen_size.width() - (DISPLAY_WIDTH + MARGIN);
+        egui::Area::new(egui::Id::new("tile_view"))
+            .fixed_pos(egui::pos2(DISPLAY_WIDTH + MARGIN, 0.0))
+            .show(ui, |ui| {
+                self.render_memory_view(ui, tile_width, tile_height);
+            });
+        /*
+        painter.rect_filled(
+            Rect::from_min_max(
+                Pos2::new(0.0, DISPLAY_HEIGHT + MARGIN),
+                Pos2::new(screen_size.width(), screen_size.height()),
+            ),
+            0.0,
+            egui::Color32::RED,
+        );*/
+
+        let asm_rect = Rect::from_min_max(
+            Pos2::new(0.0, DISPLAY_HEIGHT + MARGIN),
+            Pos2::new(screen_size.width(), screen_size.height()),
+        );
+        egui::Area::new(egui::Id::new("asm_view"))
+            .fixed_pos(egui::pos2(0.0, DISPLAY_HEIGHT + MARGIN))
+            .show(ui, |ui| {
+                //let painter = ui.painter();
+                //painter.rect_filled(asm_rect, 0.0, egui::Color32::GREEN);
+                self.render_asm_view(ui, asm_rect);
+            });
     }
 }
 
