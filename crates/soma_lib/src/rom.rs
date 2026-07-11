@@ -1,3 +1,5 @@
+use core::ops::{Index, Range};
+
 #[cfg(feature = "max_rom_512b")]
 const MAX_ROM_SIZE: usize = 512;
 
@@ -19,7 +21,8 @@ const MAX_ROM_SIZE: usize = 512 * 1024;
 const MAX_ROM_SIZE: usize = 16 * 1024;
 
 pub struct ROM {
-    pub data: [u8; MAX_ROM_SIZE],
+    data_buffer: [u8; MAX_ROM_SIZE],
+    size: usize,
 }
 
 /// A ROM can contain more than u16::MAX data (the maximum address space
@@ -33,16 +36,39 @@ impl ROM {
                 data_in.len()
             );
         }
-        let mut data = [0; MAX_ROM_SIZE];
-        data[..data_in.len()].copy_from_slice(data_in);
-        ROM { data }
+        let mut data_buffer = [0; MAX_ROM_SIZE];
+        data_buffer[..data_in.len()].copy_from_slice(data_in);
+        ROM {
+            data_buffer,
+            size: data_in.len(),
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
     }
 
     pub fn read_u8(&self, ix: usize) -> u8 {
-        self.data[ix]
+        self.data_buffer[ix]
     }
 
     pub fn read_u16(&self, ix: usize) -> u16 {
-        u16::from_le_bytes([self.data[ix], self.data[ix + 1]])
+        u16::from_le_bytes([self.data_buffer[ix], self.data_buffer[ix + 1]])
+    }
+}
+
+impl Index<usize> for ROM {
+    type Output = u8;
+
+    fn index(&self, index: usize) -> &u8 {
+        &self.data_buffer[index]
+    }
+}
+
+impl Index<Range<usize>> for ROM {
+    type Output = [u8];
+
+    fn index(&self, index: core::ops::Range<usize>) -> &[u8] {
+        &self.data_buffer[index]
     }
 }
