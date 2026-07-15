@@ -1,7 +1,8 @@
+use std::collections::HashSet;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{collections::HashMap, sync::Arc};
 
-use egui::{Button, FontDefinitions, Frame, Pos2, Rect, ScrollArea};
+use egui::{Button, Color32, FontDefinitions, Frame, Pos2, Rect, ScrollArea};
 use psy::arch::sm83::{MAX_INSTRUCTION_BYTE_LENGTH, Sm83Instr};
 
 use libsoma::dmg::DMG;
@@ -73,6 +74,7 @@ struct DebuggerState {
     pub disassemble_cache: HashMap<u16, &'static Sm83Instr>,
     pub reg_value_display: RegValueDisplay,
     pub asm_view_at: AsmViewAt,
+    pub breakpoints: HashSet<u16>,
 }
 
 enum AsmViewAt {
@@ -88,6 +90,7 @@ impl DebuggerState {
             disassemble_cache: HashMap::new(),
             reg_value_display: RegValueDisplay::Hex,
             asm_view_at: AsmViewAt::PC,
+            breakpoints: HashSet::new(),
         }
     }
 }
@@ -119,6 +122,7 @@ impl SomaApp {
     ) -> SomaApp {
         let mut fonts = FontDefinitions::default();
         egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+        egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Fill);
         cc.egui_ctx.set_fonts(fonts);
 
         SomaApp { fb, debugger }
@@ -250,7 +254,14 @@ impl SomaApp {
 
                             for instr_loc in r_instr {
                                 let mark_halt = instr_loc.0 == pc;
-                                render_instr(instr_loc.1, ui, instr_loc.0, mark_halt, rom);
+                                render_instr(
+                                    ui,
+                                    instr_loc.1,
+                                    instr_loc.0,
+                                    mark_halt,
+                                    rom,
+                                    &mut debugger.state.breakpoints,
+                                );
                             }
                         });
                 });
@@ -452,6 +463,61 @@ fn flag(v: u8, m: u8) -> &'static str {
     if v & m == 0 { "0" } else { "1" }
 }
 
+fn render_instr(
+    ui: &mut egui::Ui,
+    may_instr: Option<&'static Sm83Instr>,
+    loc: u16,
+    mark_halt: bool,
+    rom: &ROM,
+    breakpoints: &mut HashSet<u16>,
+) {
+    let mark_break = breakpoints.contains(&loc);
+
+    if mark_halt {
+        ui.label(egui_phosphor::regular::PLAY);
+    } else if mark_break {
+        if ui
+            .colored_label(Color32::RED, egui_phosphor::fill::CIRCLE)
+            .clicked()
+        {
+            toggle_breakpoint(breakpoints, loc);
+        }
+    } else {
+        if ui.label("       ").clicked() {
+            toggle_breakpoint(breakpoints, loc);
+        }
+    }
+
+    if ui.label(format!("0x{:X}      ", loc)).clicked() {
+        toggle_breakpoint(breakpoints, loc);
+    }
+
+    let instr_text = if let Some(instr) = may_instr {
+        let loc_u = loc as usize;
+        ui.label(format!("{}           ", byte_text(loc_u, instr, rom)));
+
+        let text = instr.text(Some(&rom[loc_u..(loc_u + instr.len())]));
+        if instr.op_code == psy::arch::sm83::INSTR_INVALID.op_code {
+            format!("{} op_code=0x{:x}", text, rom[loc_u])
+        } else {
+            text
+        }
+    } else {
+        "???".to_string()
+    };
+
+    ui.label(instr_text);
+    ui.end_row();
+}
+
+fn toggle_breakpoint(breakpoints: &mut HashSet<u16>, loc: u16) {
+    if breakpoints.contains(&loc) {
+        breakpoints.remove(&loc);
+    } else {
+        breakpoints.insert(loc);
+    }
+}
+
 // Collect all confirmed instructions in the given memory range
 fn instr_in_range(
     cache: &HashMap<u16, &'static Sm83Instr>,
@@ -474,39 +540,6 @@ fn instr_in_range(
     }
 
     result
-}
-
-fn render_instr(
-    may_instr: Option<&'static Sm83Instr>,
-    ui: &mut egui::Ui,
-    loc: u16,
-    mark_halt: bool,
-    rom: &ROM,
-) {
-    if mark_halt {
-        ui.label(egui_phosphor::regular::PLAY);
-    } else {
-        ui.label("");
-    }
-
-    ui.label(format!("0x{:X}      ", loc));
-
-    let instr_text = if let Some(instr) = may_instr {
-        let loc_u = loc as usize;
-        ui.label(format!("{}           ", byte_text(loc_u, instr, rom)));
-
-        let text = instr.text(Some(&rom[loc_u..(loc_u + instr.len())]));
-        if instr.op_code == psy::arch::sm83::INSTR_INVALID.op_code {
-            format!("{} op_code=0x{:x}", text, rom[loc_u])
-        } else {
-            text
-        }
-    } else {
-        "???".to_string()
-    };
-
-    ui.label(instr_text);
-    ui.end_row();
 }
 
 fn byte_text(loc: usize, instr: &Sm83Instr, rom: &ROM) -> String {

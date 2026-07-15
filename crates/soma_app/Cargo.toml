@@ -15,7 +15,7 @@ desktop = []
 clap = { version = "4.6.1", features = ["derive"] }
 eframe = "0.34.1"
 egui = "0.34.1"
-egui-phosphor = "0.12"
+egui-phosphor = { version = "0.12", features = ["regular", "fill"] }
 
 libsoma = { path = "../soma_lib", features = ["max_rom_512kb"] }
 psy = { path = "../../../psy/" }
