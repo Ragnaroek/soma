@@ -2,7 +2,7 @@ use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{collections::HashMap, sync::Arc};
 
 use egui::{Button, FontDefinitions, Frame, Pos2, Rect, ScrollArea};
-use psy::arch::sm83::Sm83Instr;
+use psy::arch::sm83::{MAX_INSTRUCTION_BYTE_LENGTH, Sm83Instr};
 
 use libsoma::dmg::DMG;
 use libsoma::rom::ROM;
@@ -218,7 +218,8 @@ impl SomaApp {
                             let rom = dmg.mc.rom.as_ref().expect("ROM");
                             let pc = dmg.sm83.pc();
 
-                            disassemble_pc(pc, &dmg, &mut debugger.state.disassemble_cache);
+                            let pc_instr =
+                                disassemble_pc(pc, &dmg, &mut debugger.state.disassemble_cache);
 
                             let num_rows = (asm_code_area.height() - 50.0) / ASM_CODE_ROW_HEIGHT;
                             let rows_before_after = ((num_rows - 1.0) / 2.0) as usize;
@@ -228,18 +229,28 @@ impl SomaApp {
                                 AsmViewAt::FixedPos(pos) => pos,
                             };
 
-                            let start = pos.saturating_sub(rows_before_after);
-                            let end = pos + rows_before_after;
+                            let instr_before = instr_in_range(
+                                &debugger.state.disassemble_cache,
+                                pc as usize - (rows_before_after * MAX_INSTRUCTION_BYTE_LENGTH),
+                                pc as usize,
+                            );
+                            let instr_after = instr_in_range(
+                                &debugger.state.disassemble_cache,
+                                pc as usize + pc_instr.len(),
+                                pc as usize + (rows_before_after * MAX_INSTRUCTION_BYTE_LENGTH),
+                            );
 
-                            for loc in start..end {
-                                let mark_halt = loc == pc as usize;
-                                instr_row_from_state(
-                                    &debugger.state.disassemble_cache,
-                                    ui,
-                                    loc as u16,
-                                    mark_halt,
-                                    rom,
-                                );
+                            let mut r_instr = Vec::with_capacity(rows_before_after * 2 + 1);
+                            r_instr.extend_from_slice(
+                                &instr_before
+                                    [instr_before.len().saturating_sub(rows_before_after)..],
+                            );
+                            r_instr.push((pc, Some(pc_instr)));
+                            r_instr.extend_from_slice(&instr_after[..rows_before_after]);
+
+                            for instr_loc in r_instr {
+                                let mark_halt = instr_loc.0 == pc;
+                                render_instr(instr_loc.1, ui, instr_loc.0, mark_halt, rom);
                             }
                         });
                 });
@@ -441,27 +452,36 @@ fn flag(v: u8, m: u8) -> &'static str {
     if v & m == 0 { "0" } else { "1" }
 }
 
-fn instr_row_from_state(
+// Collect all confirmed instructions in the given memory range
+fn instr_in_range(
     cache: &HashMap<u16, &'static Sm83Instr>,
-    ui: &mut egui::Ui,
-    loc: u16,
-    mark_halt: bool,
-    rom: &ROM,
-) {
-    let may_instr = cache.get(&loc);
-    if let Some(instr) = may_instr {
-        instr_row(ui, loc, mark_halt, rom, Some(*instr));
-    } else {
-        instr_row(ui, loc, mark_halt, rom, None);
-    };
+    start: usize,
+    end: usize,
+) -> Vec<(u16, Option<&'static Sm83Instr>)> {
+    let mut result = Vec::with_capacity(end - start);
+
+    let mut i = start;
+    while i < end {
+        let loc = i as u16;
+        let may_instr = cache.get(&loc);
+        if let Some(instr) = may_instr {
+            result.push((loc, Some(*instr)));
+            i += instr.len();
+        } else {
+            result.push((loc, None));
+            i += 1;
+        }
+    }
+
+    result
 }
 
-fn instr_row(
+fn render_instr(
+    may_instr: Option<&'static Sm83Instr>,
     ui: &mut egui::Ui,
     loc: u16,
     mark_halt: bool,
     rom: &ROM,
-    may_instr: Option<&Sm83Instr>,
 ) {
     if mark_halt {
         ui.label(egui_phosphor::regular::PLAY);
@@ -469,11 +489,13 @@ fn instr_row(
         ui.label("");
     }
 
-    ui.label(format!("0x{:X}", loc));
+    ui.label(format!("0x{:X}      ", loc));
 
     let instr_text = if let Some(instr) = may_instr {
         let loc_u = loc as usize;
-        let text = instr.text(Some(&rom[loc_u..(loc_u + 3)]));
+        ui.label(format!("{}           ", byte_text(loc_u, instr, rom)));
+
+        let text = instr.text(Some(&rom[loc_u..(loc_u + instr.len())]));
         if instr.op_code == psy::arch::sm83::INSTR_INVALID.op_code {
             format!("{} op_code=0x{:x}", text, rom[loc_u])
         } else {
@@ -487,13 +509,29 @@ fn instr_row(
     ui.end_row();
 }
 
+fn byte_text(loc: usize, instr: &Sm83Instr, rom: &ROM) -> String {
+    match instr.len() {
+        1 => format!("{:02X}      ", rom[loc]),
+        2 => format!("{:02X} {:02X}   ", rom[loc], rom[loc + 1]),
+        3 => format!("{:02X} {:02X} {:02X}", rom[loc], rom[loc + 1], rom[loc + 2]),
+        _ => "        ".to_string(),
+    }
+}
+
 // make sure that the instruction at the current pc is disassembled
 // and in the disassembly cache
-fn disassemble_pc(pc: u16, dmg: &DMG<Instant>, cache: &mut HashMap<u16, &'static Sm83Instr>) {
+fn disassemble_pc(
+    pc: u16,
+    dmg: &DMG<Instant>,
+    cache: &mut HashMap<u16, &'static Sm83Instr>,
+) -> &'static Sm83Instr {
     let may_pc_instr = cache.get(&pc);
 
-    if may_pc_instr.is_none() {
+    if let Some(instr) = may_pc_instr {
+        instr
+    } else {
         let instr = psy::arch::sm83::decode(dmg.mc.read(pc));
         cache.insert(pc, instr);
-    };
+        instr
+    }
 }
