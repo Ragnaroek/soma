@@ -46,7 +46,7 @@ fn main() -> eframe::Result {
     let frame_buffer_emu = frame_buffer.clone();
 
     let step_control_init = if args.debugger {
-        StepControl::Break
+        StepControl::Halt
     } else {
         StepControl::Run
     };
@@ -98,23 +98,24 @@ fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<Frame
     loop {
         {
             let step_control = emulation.step_control();
-            if step_control == StepControl::Break {
+            if let StepControl::Halt = step_control {
                 thread::sleep(Duration::from_millis(30));
                 continue;
             }
-            if let StepControl::BreakAt(break_at) = step_control {
-                let pc = { emulation.dmg_read_lock().sm83.pc() };
-                if pc == break_at {
-                    thread::sleep(Duration::from_millis(30));
-                    continue;
-                }
+            let pc = { emulation.dmg_read_lock().sm83.pc() };
+            if let StepControl::Resume = step_control {
+                emulation.set_step_control(StepControl::Run);
+            } else if emulation.has_breakpoint_at(pc) && step_control != StepControl::NextStep {
+                emulation.set_step_control(StepControl::Halt);
+                thread::sleep(Duration::from_millis(30));
+                continue;
             }
         }
         let r = {
             let mut dmg = emulation.dmg_write_lock();
             let r = dmg.step();
             if emulation.step_control() == StepControl::NextStep {
-                emulation.set_step_control(StepControl::Break);
+                emulation.set_step_control(StepControl::Halt);
             }
             r
         };

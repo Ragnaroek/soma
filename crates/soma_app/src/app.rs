@@ -27,6 +27,7 @@ pub struct FrameBuffer {
 pub struct Emulation {
     dmg: RwLock<DMG<Instant>>,
     step_control: RwLock<StepControl>,
+    breakpoints: RwLock<HashSet<u16>>,
 }
 
 impl Emulation {
@@ -34,6 +35,7 @@ impl Emulation {
         Emulation {
             dmg: RwLock::new(dmg),
             step_control: RwLock::new(init_step),
+            breakpoints: RwLock::new(HashSet::new()),
         }
     }
 
@@ -52,14 +54,35 @@ impl Emulation {
     pub fn set_step_control(&self, step: StepControl) {
         *self.step_control.write().expect("step_control lock") = step;
     }
+
+    pub fn toggle_breakpoint(&self, loc: u16) {
+        let mut breakpoints = self.breakpoints.write().expect("breakpoint lock");
+        if breakpoints.contains(&loc) {
+            breakpoints.remove(&loc);
+        } else {
+            breakpoints.insert(loc);
+        }
+    }
+
+    pub fn has_breakpoint_at(&self, loc: u16) -> bool {
+        self.breakpoints
+            .read()
+            .expect("breakpoint lock")
+            .contains(&loc)
+    }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+// Protocol between the emulation loop and a debugger.
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum StepControl {
-    Break,
-    BreakAt(u16),
-    NextStep,
+    // Ignore all breakpoint and do a normal run of the emulation
     Run,
+    // Halt the emulation
+    Halt,
+    // If in Halt continue Run.
+    Resume,
+    // Do one step and set to to 'Halt' after this step.
+    NextStep,
 }
 
 #[derive(PartialEq)]
@@ -74,7 +97,6 @@ struct DebuggerState {
     pub disassemble_cache: HashMap<u16, &'static Sm83Instr>,
     pub reg_value_display: RegValueDisplay,
     pub asm_view_at: AsmViewAt,
-    pub breakpoints: HashSet<u16>,
 }
 
 enum AsmViewAt {
@@ -90,7 +112,6 @@ impl DebuggerState {
             disassemble_cache: HashMap::new(),
             reg_value_display: RegValueDisplay::Hex,
             asm_view_at: AsmViewAt::PC,
-            breakpoints: HashSet::new(),
         }
     }
 }
@@ -193,19 +214,36 @@ impl SomaApp {
                 .fixed_pos(button_area.min)
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        if ui.button("Step").clicked() {
+                        let current_control =
+                            self.debugger.as_ref().unwrap().emulator.step_control();
+
+                        let (step_enabled, resume_enabled) = match current_control {
+                            StepControl::Run => (false, false),
+                            StepControl::Halt => (true, true),
+                            StepControl::NextStep => (false, false),
+                            StepControl::Resume => (false, false),
+                        };
+
+                        if ui.add_enabled(step_enabled, Button::new("Step")).clicked() {
                             self.debugger
                                 .as_ref()
                                 .unwrap()
                                 .emulator
                                 .set_step_control(StepControl::NextStep);
                         }
-                        if ui.button("Run").clicked() {
-                            self.debugger
-                                .as_ref()
-                                .unwrap()
-                                .emulator
-                                .set_step_control(StepControl::Run);
+                        if ui
+                            .add_enabled(resume_enabled, Button::new("Resume"))
+                            .clicked()
+                        {
+                            let emu = &self.debugger.as_ref().unwrap().emulator;
+                            match current_control {
+                                StepControl::Halt => {
+                                    emu.set_step_control(StepControl::Resume);
+                                }
+                                _ => {
+                                    unreachable!("only enabled for Breakpoint")
+                                }
+                            }
                         }
                     });
                 });
@@ -260,7 +298,7 @@ impl SomaApp {
                                     instr_loc.0,
                                     mark_halt,
                                     rom,
-                                    &mut debugger.state.breakpoints,
+                                    &debugger.emulator,
                                 );
                             }
                         });
@@ -469,9 +507,9 @@ fn render_instr(
     loc: u16,
     mark_halt: bool,
     rom: &ROM,
-    breakpoints: &mut HashSet<u16>,
+    emulator: &Arc<Emulation>,
 ) {
-    let mark_break = breakpoints.contains(&loc);
+    let mark_break = emulator.has_breakpoint_at(loc);
 
     if mark_halt {
         ui.label(egui_phosphor::regular::PLAY);
@@ -480,16 +518,16 @@ fn render_instr(
             .colored_label(Color32::RED, egui_phosphor::fill::CIRCLE)
             .clicked()
         {
-            toggle_breakpoint(breakpoints, loc);
+            emulator.toggle_breakpoint(loc);
         }
     } else {
         if ui.label("       ").clicked() {
-            toggle_breakpoint(breakpoints, loc);
+            emulator.toggle_breakpoint(loc);
         }
     }
 
     if ui.label(format!("0x{:X}      ", loc)).clicked() {
-        toggle_breakpoint(breakpoints, loc);
+        emulator.toggle_breakpoint(loc);
     }
 
     let instr_text = if let Some(instr) = may_instr {
@@ -508,14 +546,6 @@ fn render_instr(
 
     ui.label(instr_text);
     ui.end_row();
-}
-
-fn toggle_breakpoint(breakpoints: &mut HashSet<u16>, loc: u16) {
-    if breakpoints.contains(&loc) {
-        breakpoints.remove(&loc);
-    } else {
-        breakpoints.insert(loc);
-    }
 }
 
 // Collect all confirmed instructions in the given memory range
