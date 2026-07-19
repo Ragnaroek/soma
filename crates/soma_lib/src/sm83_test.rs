@@ -1,19 +1,19 @@
 use crate::io::IO;
 use crate::memory::MemoryController;
 use crate::rom::ROM;
-use crate::sm83::{RegBuilder, Register, SM83};
+use crate::sm83::{ExecErr, RegBuilder, Register, SM83};
 
 #[test]
-fn test_err() -> Result<(), &'static str> {
+fn test_err() -> Result<(), ExecErr> {
     let cases = [(
         [psy::arch::sm83::INSTR_INVALID.op_code],
-        "invalid instruction",
+        ExecErr::InvalidInstruction(psy::arch::sm83::INSTR_INVALID.op_code, 0),
     )];
 
     for (mem, err) in cases {
         let rom = ROM::new_copy_from_slice(&mem);
         let r = exec(IO::init(), Register::zero(), rom);
-        assert!(r.is_err(), "expected error '{}', but got Ok", err);
+        assert!(r.is_err(), "expected error '{:?}', but got Ok", err);
         match r {
             Ok(_) => assert!(false, "error expected"),
             Err(e) => assert_eq!(e, err),
@@ -23,7 +23,7 @@ fn test_err() -> Result<(), &'static str> {
 }
 
 #[test]
-fn test_nop() -> Result<(), &'static str> {
+fn test_nop() -> Result<(), ExecErr> {
     let cases = [([psy::arch::sm83::INSTR_NOP.op_code])];
 
     for mem in cases {
@@ -36,7 +36,7 @@ fn test_nop() -> Result<(), &'static str> {
 }
 
 #[test]
-fn test_jp() -> Result<(), &'static str> {
+fn test_jp() -> Result<(), ExecErr> {
     let cases = [(
         "(jp 0x150)",
         [psy::arch::sm83::INSTR_JP.op_code, 0xAA, 0xFF],
@@ -59,7 +59,7 @@ fn test_jp() -> Result<(), &'static str> {
 }
 
 #[test]
-fn test_jr() -> Result<(), &'static str> {
+fn test_jr() -> Result<(), ExecErr> {
     let cases: [(&str, Register, &[u8], u16); 7] = [
         (
             "(jr 0xFE)", //self-jump
@@ -173,7 +173,7 @@ fn test_jr() -> Result<(), &'static str> {
 }
 
 #[test]
-fn test_ld() -> Result<(), &'static str> {
+fn test_ld() -> Result<(), ExecErr> {
     let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 10] = [
         (
             "(ld %a 1)",
@@ -321,7 +321,7 @@ fn test_ld() -> Result<(), &'static str> {
 }
 
 #[test]
-fn test_cp() -> Result<(), &'static str> {
+fn test_cp() -> Result<(), ExecErr> {
     let cases: [(&str, Register, &[u8], Register); 2] = [
         (
             "(cp 0x90) with a = 1 (not equal)",
@@ -347,7 +347,7 @@ fn test_cp() -> Result<(), &'static str> {
 }
 
 #[test]
-fn test_inc() -> Result<(), &'static str> {
+fn test_inc() -> Result<(), ExecErr> {
     let cases = [
         (
             "(inc %de) with zero %de",
@@ -386,7 +386,7 @@ fn test_inc() -> Result<(), &'static str> {
 }
 
 #[test]
-fn test_dec() -> Result<(), &'static str> {
+fn test_dec() -> Result<(), ExecErr> {
     let cases = [
         (
             "(dec %bc) with 1 %bc",
@@ -419,7 +419,7 @@ fn test_dec() -> Result<(), &'static str> {
 }
 
 #[test]
-fn test_or() -> Result<(), &'static str> {
+fn test_or() -> Result<(), ExecErr> {
     let cases = [
         (
             "(or %a %c) non-zero result",
@@ -452,7 +452,40 @@ fn test_or() -> Result<(), &'static str> {
 }
 
 #[test]
-fn test_call() -> Result<(), &'static str> {
+fn test_xor() -> Result<(), ExecErr> {
+    let cases = [
+        (
+            "(xor %a %a) - with zero reg",
+            RegBuilder::new().a(0x00).f_z(1).f_n(1).f_h(1).f_c(1).reg(), // flags are all reset
+            &[psy::arch::sm83::INSTR_XOR_A_A.op_code],
+            RegBuilder::new().a(0x00).f_z(0).f_n(0).f_h(0).f_c(0).reg(),
+        ),
+        (
+            "(xor %a %a) - with non-zero reg",
+            RegBuilder::new().a(0x10).f_z(1).f_n(1).f_h(1).f_c(1).reg(),
+            &[psy::arch::sm83::INSTR_XOR_A_A.op_code],
+            RegBuilder::new().a(0x00).f_z(0).f_n(0).f_h(0).f_c(0).reg(),
+        ),
+    ];
+
+    for (exp, reg_init, mem, reg_after) in cases {
+        let rom = ROM::new_copy_from_slice(mem);
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            1,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            1,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
+#[test]
+fn test_call() -> Result<(), ExecErr> {
     let mut mem = [psy::arch::sm83::INSTR_INVALID.op_code; 0x166 + 4];
     mem[0x167] = psy::arch::sm83::INSTR_CALL.op_code;
     mem[0x168] = 0x50;
@@ -491,7 +524,7 @@ fn test_call() -> Result<(), &'static str> {
 }
 
 #[test]
-fn test_ret() -> Result<(), &'static str> {
+fn test_ret() -> Result<(), ExecErr> {
     let cases = [(
         "(ret)",
         [psy::arch::sm83::INSTR_RET.op_code],
@@ -544,7 +577,7 @@ fn assert_equal_v_regs(l: &Register, r: &Register, exp: &str) {
     assert_eq!(l.l, r.l, "reg l: {}", exp);
 }
 
-fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), &'static str> {
+fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), ExecErr> {
     let mc = MemoryController {
         io: io,
         rom: Some(rom),
@@ -556,7 +589,7 @@ fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), &'s
 fn exec_with_mc(
     mut mc: MemoryController,
     reg: Register,
-) -> Result<(SM83, MemoryController), &'static str> {
+) -> Result<(SM83, MemoryController), ExecErr> {
     let mut sm83 = SM83::init();
     sm83.reg = reg;
     sm83.execute(&mut mc)?;

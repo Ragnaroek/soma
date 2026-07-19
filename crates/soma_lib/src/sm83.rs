@@ -12,10 +12,16 @@ pub const H: u8 = 1 << 5;
 pub const C: u8 = 1 << 4;
 
 /// SM83 CPU emulator
-
 pub struct SM83 {
     halted: bool,
     pub reg: Register,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ExecErr {
+    // values: first one: op_code, second one: address
+    InvalidInstruction(u8, u16),
+    GeneralError(&'static str),
 }
 
 #[derive(Clone, Copy)]
@@ -198,10 +204,7 @@ impl SM83 {
         }
     }
 
-    pub fn execute(
-        &mut self,
-        mc: &mut MemoryController,
-    ) -> Result<&'static Sm83Instr, &'static str> {
+    pub fn execute(&mut self, mc: &mut MemoryController) -> Result<&'static Sm83Instr, ExecErr> {
         let instr = sm83::decode(mc.read(self.pc()));
         EXEC_TABLE[instr.op_code as usize](self, mc)?;
         Ok(instr)
@@ -232,13 +235,15 @@ impl SM83 {
     }
 }
 
-type Sm83Exec = fn(&mut SM83, &mut MemoryController) -> Result<(), &'static str>;
+type Sm83Exec = fn(&mut SM83, &mut MemoryController) -> Result<(), ExecErr>;
 
-fn exec_invalid(_: &mut SM83, _: &mut MemoryController) -> Result<(), &'static str> {
-    return Err("invalid instruction");
+fn exec_invalid(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let pc = sm83.pc();
+    let op = mc.read(pc);
+    Err(ExecErr::InvalidInstruction(op, pc))
 }
 
-fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let v = mc.read(sm83.pc() + 1);
     let (z, carry) = sm83.reg.a.overflowing_sub(v);
     sm83.reg.set_flag(Z, z);
@@ -249,20 +254,20 @@ fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &
     Ok(())
 }
 
-fn exec_jp(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_jp(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = mc.read_u16(sm83.pc() + 1);
     sm83.set_pc(addr);
     Ok(())
 }
 
-fn exec_jr(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_jr(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let rel = mc.read(sm83.pc() + 1) as i8;
     sm83.inc_pc(2); // relative jump is computed after the instruction
     sm83.set_pc(sm83.pc().saturating_add_signed(rel as i16));
     Ok(())
 }
 
-fn exec_jr_if_c(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_jr_if_c(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let rel = mc.read(sm83.pc() + 1) as i8;
     sm83.inc_pc(2); // relative jump is computed after the instruction
     if (sm83.reg.f & C) != 0 {
@@ -271,7 +276,7 @@ fn exec_jr_if_c(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'stat
     Ok(())
 }
 
-fn exec_jr_if_nz(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_jr_if_nz(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let rel = mc.read(sm83.pc() + 1) as i8;
     sm83.inc_pc(2); // relative jump is computed after the instruction
     if (sm83.reg.f & Z) == 0 {
@@ -280,20 +285,14 @@ fn exec_jr_if_nz(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'sta
     Ok(())
 }
 
-fn exec_ld_to_a_from_immediate(
-    sm83: &mut SM83,
-    mc: &mut MemoryController,
-) -> Result<(), &'static str> {
+fn exec_ld_to_a_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let val = mc.read(sm83.pc() + 1);
     sm83.reg.a = val;
     sm83.inc_pc(2);
     Ok(())
 }
 
-fn exec_ld_to_a_from_deref_de(
-    sm83: &mut SM83,
-    mc: &mut MemoryController,
-) -> Result<(), &'static str> {
+fn exec_ld_to_a_from_deref_de(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = sm83.reg.de();
     let v = mc.read(addr);
     sm83.reg.a = v;
@@ -301,15 +300,12 @@ fn exec_ld_to_a_from_deref_de(
     Ok(())
 }
 
-fn exec_nop(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_nop(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.inc_pc(1);
     Ok(())
 }
 
-fn exec_ld_to_de_from_immediate(
-    sm83: &mut SM83,
-    mc: &mut MemoryController,
-) -> Result<(), &'static str> {
+fn exec_ld_to_de_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let lsb = mc.read(sm83.pc() + 1);
     let msb = mc.read(sm83.pc() + 2);
     sm83.reg.d = msb;
@@ -318,10 +314,7 @@ fn exec_ld_to_de_from_immediate(
     Ok(())
 }
 
-fn exec_ld_to_hl_from_immediate(
-    sm83: &mut SM83,
-    mc: &mut MemoryController,
-) -> Result<(), &'static str> {
+fn exec_ld_to_hl_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let lsb = mc.read(sm83.pc() + 1);
     let msb = mc.read(sm83.pc() + 2);
     sm83.reg.h = msb;
@@ -330,10 +323,7 @@ fn exec_ld_to_hl_from_immediate(
     Ok(())
 }
 
-fn exec_ld_to_bc_from_immediate(
-    sm83: &mut SM83,
-    mc: &mut MemoryController,
-) -> Result<(), &'static str> {
+fn exec_ld_to_bc_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let lsb = mc.read(sm83.pc() + 1);
     let msb = mc.read(sm83.pc() + 2);
     sm83.reg.b = msb;
@@ -345,7 +335,7 @@ fn exec_ld_to_bc_from_immediate(
 fn exec_ld_to_deref_label_from_a(
     sm83: &mut SM83,
     mc: &mut MemoryController,
-) -> Result<(), &'static str> {
+) -> Result<(), ExecErr> {
     let addr = mc.read_u16(sm83.pc() + 1);
     mc.write(addr, sm83.reg.a);
     sm83.inc_pc(3);
@@ -355,7 +345,7 @@ fn exec_ld_to_deref_label_from_a(
 fn exec_ld_to_deref_hl_inc_from_a(
     sm83: &mut SM83,
     mc: &mut MemoryController,
-) -> Result<(), &'static str> {
+) -> Result<(), ExecErr> {
     let addr = sm83.reg.hl();
     mc.write(addr, sm83.reg.a);
     sm83.reg.set_hl(addr + 1);
@@ -366,7 +356,7 @@ fn exec_ld_to_deref_hl_inc_from_a(
 fn exec_ld_to_a_from_deref_label(
     sm83: &mut SM83,
     mc: &mut MemoryController,
-) -> Result<(), &'static str> {
+) -> Result<(), ExecErr> {
     let addr = mc.read_u16(sm83.pc() + 1);
     let v = mc.read(addr);
     sm83.reg.a = v;
@@ -377,7 +367,7 @@ fn exec_ld_to_a_from_deref_label(
 fn exec_ld_to_a_from_deref_hl_inc(
     sm83: &mut SM83,
     mc: &mut MemoryController,
-) -> Result<(), &'static str> {
+) -> Result<(), ExecErr> {
     let addr = sm83.reg.hl();
     let v = mc.read(addr);
     sm83.reg.a = v;
@@ -386,13 +376,13 @@ fn exec_ld_to_a_from_deref_hl_inc(
     Ok(())
 }
 
-fn exec_ld_to_a_from_b(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_ld_to_a_from_b(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.reg.a = sm83.reg.b;
     sm83.inc_pc(1);
     Ok(())
 }
 
-fn exec_inc_de(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_inc_de(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     let de = sm83.reg.de();
     let (de_inc, _) = de.overflowing_add(1);
     sm83.reg.set_de(de_inc);
@@ -400,7 +390,7 @@ fn exec_inc_de(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'stat
     Ok(())
 }
 
-fn exec_dec_bc(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_dec_bc(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     let bc = sm83.reg.bc();
     let (bc_dec, _) = bc.overflowing_sub(1);
     sm83.reg.set_bc(bc_dec);
@@ -408,14 +398,24 @@ fn exec_dec_bc(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'stat
     Ok(())
 }
 
-fn exec_or_a_c(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_or_a_c(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.reg.a = sm83.reg.a | sm83.reg.c;
     sm83.reg.set_flag(Z, (sm83.reg.a == 0) as u8);
     sm83.inc_pc(1);
     Ok(())
 }
 
-fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_xor_a_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    sm83.reg.a = 0;
+    sm83.reg.set_flag(Z, 0);
+    sm83.reg.set_flag(N, 0);
+    sm83.reg.set_flag(H, 0);
+    sm83.reg.set_flag(C, 0);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
+fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = mc.read_u16(sm83.pc() + 1);
 
     let pc = (sm83.pc() + 3).to_le_bytes();
@@ -428,7 +428,7 @@ fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static 
     Ok(())
 }
 
-fn exec_ret(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), &'static str> {
+fn exec_ret(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let lsb = mc.read(sm83.reg.sp);
     sm83.inc_sp(1);
     let msb = mc.read(sm83.reg.sp);
@@ -568,55 +568,55 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x7D*/ exec_invalid,
     /*0x7E*/ exec_invalid,
     /*0x7F*/ exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
-    exec_invalid,
+    /*0x80*/ exec_invalid,
+    /*0x81*/ exec_invalid,
+    /*0x82*/ exec_invalid,
+    /*0x83*/ exec_invalid,
+    /*0x84*/ exec_invalid,
+    /*0x85*/ exec_invalid,
+    /*0x86*/ exec_invalid,
+    /*0x87*/ exec_invalid,
+    /*0x88*/ exec_invalid,
+    /*0x89*/ exec_invalid,
+    /*0x8A*/ exec_invalid,
+    /*0x8B*/ exec_invalid,
+    /*0x8C*/ exec_invalid,
+    /*0x8D*/ exec_invalid,
+    /*0x8E*/ exec_invalid,
+    /*0x8F*/ exec_invalid,
+    /*0x90*/ exec_invalid,
+    /*0x91*/ exec_invalid,
+    /*0x92*/ exec_invalid,
+    /*0x93*/ exec_invalid,
+    /*0x94*/ exec_invalid,
+    /*0x95*/ exec_invalid,
+    /*0x96*/ exec_invalid,
+    /*0x97*/ exec_invalid,
+    /*0x98*/ exec_invalid,
+    /*0x99*/ exec_invalid,
+    /*0x9A*/ exec_invalid,
+    /*0x9B*/ exec_invalid,
+    /*0x9C*/ exec_invalid,
+    /*0x9D*/ exec_invalid,
+    /*0x9E*/ exec_invalid,
+    /*0x9F*/ exec_invalid,
+    /*0xA0*/ exec_invalid,
+    /*0xA1*/ exec_invalid,
+    /*0xA2*/ exec_invalid,
+    /*0xA3*/ exec_invalid,
+    /*0xA4*/ exec_invalid,
+    /*0xA5*/ exec_invalid,
+    /*0xA6*/ exec_invalid,
+    /*0xA7*/ exec_invalid,
+    /*0xA8*/ exec_invalid,
+    /*0xA9*/ exec_invalid,
+    /*0xAA*/ exec_invalid,
+    /*0xAB*/ exec_invalid,
+    /*0xAC*/ exec_invalid,
+    /*0xAD*/ exec_invalid,
+    /*0xAE*/ exec_invalid,
+    /*0xAF*/ exec_xor_a_a,
+    /*0xB0*/ exec_invalid,
     /*0xB1*/ exec_or_a_c,
     /*0xB2*/ exec_invalid,
     /*0xB3*/ exec_invalid,

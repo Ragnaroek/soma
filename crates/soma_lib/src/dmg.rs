@@ -3,7 +3,7 @@ use psy::arch::sm83::Sm83Instr;
 use crate::io::IO;
 use crate::memory::MemoryController;
 use crate::rom::ROM;
-use crate::sm83::SM83;
+use crate::sm83::{ExecErr, SM83};
 
 pub const RESOLUTION_X: usize = 166;
 pub const RESOLUTION_Y: usize = 144;
@@ -65,9 +65,9 @@ impl<T> DMG<T> {
 
     /// Run one step in the emulation. The returned value is the expected
     /// wait time for the next step call that must be awaited by the caller.
-    pub fn step(&mut self) -> Result<StepResult, &'static str> {
+    pub fn step(&mut self) -> Result<StepResult, ExecErr> {
         if self.sm83.halted() {
-            return Err("Halted");
+            return Err(ExecErr::GeneralError("Halted"));
         }
 
         let instr = self.sm83.execute(&mut self.mc)?;

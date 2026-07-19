@@ -134,7 +134,7 @@ fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<Frame
                 fb.needs_update = true;
             }
         } else {
-            println!("ERR: {}", r.err().unwrap());
+            println!("ERR: {:?}", r.err().unwrap());
         }
     }
 }
