@@ -224,13 +224,16 @@ impl SomaApp {
                             StepControl::Resume => (false, false),
                         };
 
-                        if ui.add_enabled(step_enabled, Button::new("Step")).clicked() {
+                        if ui.add_enabled(step_enabled, Button::new("Step")).clicked()
+                            || ui.input(|i| i.key_pressed(egui::Key::S))
+                        {
                             self.debugger
                                 .as_ref()
                                 .unwrap()
                                 .emulator
                                 .set_step_control(StepControl::NextStep);
                         }
+
                         if ui
                             .add_enabled(resume_enabled, Button::new("Resume"))
                             .clicked()
