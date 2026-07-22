@@ -12,6 +12,9 @@ pub struct MemoryController {
     /// 0x9C00 to 0x9FFF Tilemap 2
     pub vram: [u8; 8192],
 
+    // 0xD000 to 0xDFFF 8KB Work RAM
+    pub ram: [u8; 8192],
+
     /// 0xFF00 to 0xFF7F I/O Ports
     pub io: IO,
 }
@@ -22,6 +25,8 @@ const ROM_N_START: u16 = 0x4000;
 const ROM_N_END: u16 = 0x7FFF;
 const VRAM_START: u16 = 0x8000;
 const VRAM_END: u16 = 0x9FFF;
+const RAM_START: u16 = 0xC000;
+const RAM_END: u16 = 0xDFFF;
 const IO_START: u16 = 0xFF00;
 const IO_END: u16 = 0xFFFF;
 
@@ -44,6 +49,8 @@ impl MemoryController {
             self.io.read(addr)
         } else if addr >= VRAM_START && addr <= VRAM_END {
             self.vram[(addr - VRAM_START) as usize]
+        } else if addr >= RAM_START && addr <= RAM_END {
+            self.ram[(addr - RAM_START) as usize]
         } else {
             panic!("mem read error: 0x{:x}", addr);
         }
@@ -66,6 +73,8 @@ impl MemoryController {
             self.io.write(addr, v);
         } else if addr >= VRAM_START && addr <= VRAM_END {
             self.vram[(addr - VRAM_START) as usize] = v;
+        } else if addr >= RAM_START && addr <= RAM_END {
+            self.ram[(addr - RAM_START) as usize] = v;
         } else {
             panic!("memory not writable at 0x{:x}", addr);
         }

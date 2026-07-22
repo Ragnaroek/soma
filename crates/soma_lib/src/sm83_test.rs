@@ -574,6 +574,7 @@ fn test_ret() -> Result<(), ExecErr> {
             io: IO::init(),
             rom: Some(rom),
             vram: [0; 8192],
+            ram: [0; 8192],
         };
         mc.write(sp_start, sp_low);
         mc.write(sp_start + 1, sp_high);
@@ -614,6 +615,7 @@ fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), Exe
         io: io,
         rom: Some(rom),
         vram: [0; 8192],
+        ram: [0; 8192],
     };
     exec_with_mc(mc, reg)
 }

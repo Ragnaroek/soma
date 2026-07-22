@@ -52,6 +52,7 @@ impl<T> DMG<T> {
         let mc = MemoryController {
             io: IO::init(),
             vram: [0; 8192],
+            ram: [0; 8192],
             rom: Some(rom),
         };
         DMG {
