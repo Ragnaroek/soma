@@ -67,7 +67,7 @@ impl MemoryController {
         } else if addr >= VRAM_START && addr <= VRAM_END {
             self.vram[(addr - VRAM_START) as usize] = v;
         } else {
-            panic!("mem write error");
+            panic!("memory not writable at 0x{:x}", addr);
         }
     }
 }

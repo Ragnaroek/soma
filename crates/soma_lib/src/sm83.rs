@@ -356,6 +356,17 @@ fn exec_ld_to_deref_label_from_a(
     Ok(())
 }
 
+fn exec_ld_to_deref_hl_dec_from_a(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+) -> Result<(), ExecErr> {
+    let addr = sm83.reg.hl();
+    mc.write(addr, sm83.reg.a);
+    sm83.reg.set_hl(addr - 1);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_ld_to_deref_hl_inc_from_a(
     sm83: &mut SM83,
     mc: &mut MemoryController,
@@ -504,7 +515,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x2F*/ exec_invalid,
     /*0x30*/ exec_invalid,
     /*0x31*/ exec_invalid,
-    /*0x32*/ exec_invalid,
+    /*0x32*/ exec_ld_to_deref_hl_dec_from_a,
     /*0x33*/ exec_invalid,
     /*0x34*/ exec_invalid,
     /*0x35*/ exec_invalid,

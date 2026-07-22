@@ -174,7 +174,7 @@ fn test_jr() -> Result<(), ExecErr> {
 
 #[test]
 fn test_ld() -> Result<(), ExecErr> {
-    let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 12] = [
+    let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 13] = [
         (
             "(ld %a 1)",
             IO::init(),
@@ -222,7 +222,16 @@ fn test_ld() -> Result<(), ExecErr> {
             &[psy::arch::sm83::INSTR_LD_TO_DEREF_HL_INC_FROM_A.op_code],
             1,
             RegBuilder::new().a(0xAB).hl(0xFF27).reg(), // reg a stays unchanged
-            &[(0xFF26, 0xAB)],
+            &[(0xFF26, 0xAB)], // address before increment stores register value
+        ),
+        (
+            "(ld (%hl -) %a)",
+            IO::init(),
+            RegBuilder::new().a(0xAB).hl(0xFF26).reg(),
+            &[psy::arch::sm83::INSTR_LD_TO_DEREF_HL_DEC_FROM_A.op_code],
+            1,
+            RegBuilder::new().a(0xAB).hl(0xFF25).reg(), // reg a stays unchanged
+            &[(0xFF26, 0xAB)], // address after increment stores register value
         ),
         (
             "(ld %a ('label))",
@@ -332,7 +341,12 @@ fn test_ld() -> Result<(), ExecErr> {
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
 
         for check in mem_checks {
-            assert_eq!(mc.read(check.0), check.1);
+            let mem_value = mc.read(check.0);
+            assert_eq!(
+                mem_value, check.1,
+                "expected memory location 0x{:x} to have value 0x{:x}. But was 0x{:x}",
+                check.0, check.1, mem_value
+            );
         }
     }
     Ok(())
