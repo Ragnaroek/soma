@@ -423,6 +423,26 @@ fn exec_dec_bc(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecEr
     Ok(())
 }
 
+fn exec_dec_b(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let (b_dec, _) = sm83.reg.b.overflowing_sub(1);
+    sm83.reg.b = b_dec;
+    sm83.reg.set_flag(Z, (b_dec == 0) as u8);
+    sm83.reg.set_flag(N, 1);
+    sm83.reg.set_flag(H, half_carry_dec(b_dec));
+    sm83.inc_pc(1);
+    Ok(())
+}
+
+fn exec_dec_c(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let (c_dec, _) = sm83.reg.c.overflowing_sub(1);
+    sm83.reg.c = c_dec;
+    sm83.reg.set_flag(Z, (c_dec == 0) as u8);
+    sm83.reg.set_flag(N, 1);
+    sm83.reg.set_flag(H, half_carry_dec(c_dec));
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_or_a_c(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.reg.a = sm83.reg.a | sm83.reg.c;
     sm83.reg.set_flag(Z, (sm83.reg.a == 0) as u8);
@@ -470,7 +490,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x02*/ exec_invalid,
     /*0x03*/ exec_invalid,
     /*0x04*/ exec_invalid,
-    /*0x05*/ exec_invalid,
+    /*0x05*/ exec_dec_b,
     /*0x06*/ exec_ld_to_b_from_immediate,
     /*0x07*/ exec_invalid,
     /*0x08*/ exec_invalid,
@@ -478,7 +498,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x0A*/ exec_invalid,
     /*0x0B*/ exec_dec_bc,
     /*0x0C*/ exec_invalid,
-    /*0x0D*/ exec_invalid,
+    /*0x0D*/ exec_dec_c,
     /*0x0E*/ exec_ld_to_c_from_immediate,
     /*0x0F*/ exec_invalid,
     /*0x10*/ exec_invalid,
@@ -722,3 +742,9 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xFE*/ exec_cp_immediate,
     /*0xFF*/ exec_invalid,
 ];
+
+// helper
+
+fn half_carry_dec(v: u8) -> u8 {
+    if v & 0x0F == 0x0F { 1 } else { 0 }
+}

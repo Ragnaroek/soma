@@ -421,6 +421,54 @@ fn test_inc() -> Result<(), ExecErr> {
 fn test_dec() -> Result<(), ExecErr> {
     let cases = [
         (
+            "(dec %b) with 1 %b",
+            RegBuilder::new().b(0x01).f_z(0).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_B.op_code],
+            RegBuilder::new().b(0x00).f_z(1).f_n(1).f_h(0).reg(),
+        ),
+        (
+            "(dec %b) with 0 %b",
+            RegBuilder::new().b(0x0).f_z(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_B.op_code],
+            RegBuilder::new().b(0xFF).f_z(0).f_n(1).f_h(1).reg(),
+        ),
+        (
+            "(dec %b) no half carry",
+            RegBuilder::new().b(0x15).f_z(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_DEC_B.op_code],
+            RegBuilder::new().b(0x14).f_z(0).f_n(1).f_h(0).reg(),
+        ),
+        (
+            "(dec %b) half carry",
+            RegBuilder::new().b(0x10).f_z(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_B.op_code],
+            RegBuilder::new().b(0x0F).f_z(0).f_n(1).f_h(1).reg(),
+        ),
+        (
+            "(dec %c) with 1 %c",
+            RegBuilder::new().c(0x01).f_z(0).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_C.op_code],
+            RegBuilder::new().c(0x00).f_z(1).f_n(1).f_h(0).reg(),
+        ),
+        (
+            "(dec %c) with 0 %c",
+            RegBuilder::new().c(0x0).f_z(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_C.op_code],
+            RegBuilder::new().c(0xFF).f_z(0).f_n(1).f_h(1).reg(),
+        ),
+        (
+            "(dec %c) no half carry",
+            RegBuilder::new().c(0x15).f_z(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_DEC_C.op_code],
+            RegBuilder::new().c(0x14).f_z(0).f_n(1).f_h(0).reg(),
+        ),
+        (
+            "(dec %c) half carry",
+            RegBuilder::new().c(0x10).f_z(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_C.op_code],
+            RegBuilder::new().c(0x0F).f_z(0).f_n(1).f_h(1).reg(),
+        ),
+        (
             "(dec %bc) with 1 %bc",
             RegBuilder::new().bc(0x01).reg(),
             &[psy::arch::sm83::INSTR_DEC_BC.op_code],
