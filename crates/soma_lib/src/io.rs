@@ -1,3 +1,5 @@
+use crate::sm83::ExecErr;
+
 type IOEffect = fn();
 
 #[derive(Copy, Clone)]
@@ -21,17 +23,22 @@ impl IO {
     }
 
     /// For testing, init IO with a predefined value
-    pub fn init_with_value(addr: u16, v: u8) -> IO {
+    pub fn init_with_value(addr: u16, v: u8) -> Result<IO, ExecErr> {
         let mut io = IO::init();
-        io.write(addr, v);
-        io
+        io.write(addr, v)?;
+        Ok(io)
     }
 
     /// addrs = absolute address. Must be in IO address space.
-    pub fn write(&mut self, addr: u16, v: u8) {
-        let me = &mut self.mem_effect[(addr - 0xFF00) as usize];
+    pub fn write(&mut self, addr: u16, v: u8) -> Result<(), ExecErr> {
+        let offset = (addr - 0xFF00) as usize;
+        if offset >= self.mem_effect.len() {
+            return Err(ExecErr::GeneralError("illegal IO address"));
+        }
+        let me = &mut self.mem_effect[offset];
         me.value = v;
         (me.effect)();
+        Ok(())
     }
 
     pub fn read(&self, addr: u16) -> u8 {

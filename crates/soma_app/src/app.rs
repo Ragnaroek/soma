@@ -404,6 +404,14 @@ impl SomaApp {
                                     ui.label(self.val_u16(dmg.sm83.reg.pc));
                                     ui.end_row();
 
+                                    ui.label("ie");
+                                    ui.label(format!("{}", dmg.sm83.reg.ie));
+                                    ui.end_row();
+
+                                    ui.label("ime");
+                                    ui.label(format!("{}", dmg.sm83.reg.ime));
+                                    ui.end_row();
+
                                     ui.label("z");
                                     ui.label(flag(dmg.sm83.reg.f, sm83::Z));
                                     ui.end_row();

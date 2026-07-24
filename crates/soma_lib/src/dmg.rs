@@ -77,7 +77,7 @@ impl<T> DMG<T> {
         let now = (self.time.now)(&self.time.ref_time);
 
         let at_scanline = (now % VBLANK_SCANLINE_MILLIS) as u8;
-        self.mc.write(0xFF44, at_scanline);
+        self.mc.write(0xFF44, at_scanline)?;
 
         let fb_refresh = if (now - self.last_refresh_at) > 14.0 {
             self.last_refresh_at = now;

@@ -1,5 +1,6 @@
 use crate::io::IO;
 use crate::rom::ROM;
+use crate::sm83::ExecErr;
 
 pub struct MemoryController {
     /// 0x0000 to 0x3FFF ROM Bank 00
@@ -68,15 +69,16 @@ impl MemoryController {
         panic!("mem read double outside ROM space")
     }
 
-    pub fn write(&mut self, addr: u16, v: u8) {
+    pub fn write(&mut self, addr: u16, v: u8) -> Result<(), ExecErr> {
         if addr >= IO_START && addr <= IO_END {
-            self.io.write(addr, v);
+            self.io.write(addr, v)?;
         } else if addr >= VRAM_START && addr <= VRAM_END {
             self.vram[(addr - VRAM_START) as usize] = v;
         } else if addr >= RAM_START && addr <= RAM_END {
             self.ram[(addr - RAM_START) as usize] = v;
         } else {
-            panic!("memory not writable at 0x{:x}", addr);
+            return Err(ExecErr::GeneralError("memory location not writable"));
         }
+        Ok(())
     }
 }

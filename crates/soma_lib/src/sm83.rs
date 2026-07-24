@@ -29,6 +29,11 @@ pub struct Register {
     pub pc: u16,
     pub sp: u16,
 
+    /// interrupt enable
+    pub ie: u8,
+    /// interrupt master enable
+    pub ime: bool,
+
     pub a: u8,
     pub b: u8,
     pub c: u8,
@@ -45,6 +50,8 @@ impl Register {
         Register {
             pc: 0,
             sp: 0,
+            ie: 0,
+            ime: true,
             a: 0,
             b: 0,
             c: 0,
@@ -243,6 +250,18 @@ fn exec_invalid(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecEr
     Err(ExecErr::InvalidInstruction(op, pc))
 }
 
+fn exec_ei(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
+    sm83.reg.ime = true;
+    sm83.inc_pc(1);
+    Ok(())
+}
+
+fn exec_di(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
+    sm83.reg.ime = false;
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let v = mc.read(sm83.pc() + 1);
     let (z, carry) = sm83.reg.a.overflowing_sub(v);
@@ -351,7 +370,7 @@ fn exec_ld_to_deref_label_from_a(
     mc: &mut MemoryController,
 ) -> Result<(), ExecErr> {
     let addr = mc.read_u16(sm83.pc() + 1);
-    mc.write(addr, sm83.reg.a);
+    mc.write(addr, sm83.reg.a)?;
     sm83.inc_pc(3);
     Ok(())
 }
@@ -361,7 +380,7 @@ fn exec_ld_to_deref_hl_dec_from_a(
     mc: &mut MemoryController,
 ) -> Result<(), ExecErr> {
     let addr = sm83.reg.hl();
-    mc.write(addr, sm83.reg.a);
+    mc.write(addr, sm83.reg.a)?;
     sm83.reg.set_hl(addr - 1);
     sm83.inc_pc(1);
     Ok(())
@@ -372,7 +391,7 @@ fn exec_ld_to_deref_hl_inc_from_a(
     mc: &mut MemoryController,
 ) -> Result<(), ExecErr> {
     let addr = sm83.reg.hl();
-    mc.write(addr, sm83.reg.a);
+    mc.write(addr, sm83.reg.a)?;
     sm83.reg.set_hl(addr + 1);
     sm83.inc_pc(1);
     Ok(())
@@ -404,6 +423,28 @@ fn exec_ld_to_a_from_deref_hl_inc(
 fn exec_ld_to_a_from_b(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.reg.a = sm83.reg.b;
     sm83.inc_pc(1);
+    Ok(())
+}
+
+fn exec_ldh_to_immediate_from_a(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let im = mc.read(sm83.pc() + 1) as u16;
+    let addr = 0xFF00 | im;
+    write_high_mem(sm83, mc, addr, sm83.reg.a)?;
+    sm83.inc_pc(2);
+    Ok(())
+}
+
+fn write_high_mem(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+    addr: u16,
+    v: u8,
+) -> Result<(), ExecErr> {
+    if addr == 0xFFFF {
+        sm83.reg.ie = v;
+    } else {
+        mc.write(addr, v)?;
+    }
     Ok(())
 }
 
@@ -465,9 +506,9 @@ fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> 
 
     let pc = (sm83.pc() + 3).to_le_bytes();
     sm83.dec_sp(1);
-    mc.write(sm83.reg.sp, pc[1]); // MSB first, as stack is _decreased_
+    mc.write(sm83.reg.sp, pc[1])?; // MSB first, as stack is _decreased_
     sm83.dec_sp(1);
-    mc.write(sm83.reg.sp, pc[0]);
+    mc.write(sm83.reg.sp, pc[0])?;
 
     sm83.set_pc(addr);
     Ok(())
@@ -709,7 +750,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xDD*/ exec_invalid,
     /*0xDE*/ exec_invalid,
     /*0xDF*/ exec_invalid,
-    /*0xE9*/ exec_invalid,
+    /*0xE0*/ exec_ldh_to_immediate_from_a,
     /*0xE1*/ exec_invalid,
     /*0xE2*/ exec_invalid,
     /*0xE3*/ exec_invalid,
@@ -728,7 +769,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xF0*/ exec_invalid,
     /*0xF1*/ exec_invalid,
     /*0xF2*/ exec_invalid,
-    /*0xF3*/ exec_invalid,
+    /*0xF3*/ exec_di,
     /*0xF4*/ exec_invalid,
     /*0xF5*/ exec_invalid,
     /*0xF6*/ exec_invalid,
@@ -736,7 +777,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xF8*/ exec_invalid,
     /*0xF9*/ exec_invalid,
     /*0xFA*/ exec_ld_to_a_from_deref_label,
-    /*0xFB*/ exec_invalid,
+    /*0xFB*/ exec_ei,
     /*0xFC*/ exec_invalid,
     /*0xFD*/ exec_invalid,
     /*0xFE*/ exec_cp_immediate,

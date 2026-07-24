@@ -36,6 +36,26 @@ fn test_nop() -> Result<(), ExecErr> {
 }
 
 #[test]
+fn test_interrupt_enablement() -> Result<(), ExecErr> {
+    let cases = [
+        ("(ei)", [psy::arch::sm83::INSTR_EI.op_code], true),
+        ("(di)", [psy::arch::sm83::INSTR_DI.op_code], false),
+    ];
+
+    for (exp, mem, ime_flag) in cases {
+        let rom = ROM::new_copy_from_slice(&mem);
+        let (sm83, _) = exec(IO::init(), Register::zero(), rom)?;
+        assert_eq!(
+            sm83.reg.ime, ime_flag,
+            "{}, want ime {}, got {}",
+            exp, ime_flag, sm83.reg.ime
+        );
+        assert_eq!(sm83.pc(), 1);
+    }
+    Ok(())
+}
+
+#[test]
 fn test_jp() -> Result<(), ExecErr> {
     let cases = [(
         "(jp 0x150)",
@@ -235,7 +255,7 @@ fn test_ld() -> Result<(), ExecErr> {
         ),
         (
             "(ld %a ('label))",
-            IO::init_with_value(0xFF44, 23),
+            IO::init_with_value(0xFF44, 23)?,
             Register::zero(),
             &[
                 psy::arch::sm83::INSTR_LD_TO_A_FROM_DEREF_LABEL.op_code,
@@ -349,6 +369,44 @@ fn test_ld() -> Result<(), ExecErr> {
             );
         }
     }
+    Ok(())
+}
+
+#[test]
+fn test_ldh() -> Result<(), ExecErr> {
+    let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 1] = [(
+        "(ldh (0xE0) %a)",
+        IO::init(),
+        RegBuilder::new().a(0x42).reg(),
+        &[psy::arch::sm83::INSTR_LDH_TO_IMMEDIATE_FROM_A.op_code, 0xE0],
+        2,
+        RegBuilder::new().a(0x42).reg(),
+        &[(0xFFE0, 0x42)],
+    )];
+
+    for (exp, io, reg_start, mem, pc_at, reg_after, mem_checks) in cases {
+        let rom = ROM::new_copy_from_slice(mem);
+        let (sm83, mc) = exec(io, reg_start, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            pc_at,
+            "expected pc at 0x{:x}, was at 0x{:x} for {}",
+            pc_at,
+            sm83.pc(),
+            exp,
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+
+        for check in mem_checks {
+            let mem_value = mc.read(check.0);
+            assert_eq!(
+                mem_value, check.1,
+                "expected memory location 0x{:x} to have value 0x{:x}. But was 0x{:x}",
+                check.0, check.1, mem_value
+            );
+        }
+    }
+
     Ok(())
 }
 
@@ -624,8 +682,8 @@ fn test_ret() -> Result<(), ExecErr> {
             vram: [0; 8192],
             ram: [0; 8192],
         };
-        mc.write(sp_start, sp_low);
-        mc.write(sp_start + 1, sp_high);
+        mc.write(sp_start, sp_low)?;
+        mc.write(sp_start + 1, sp_high)?;
         let (sm83, _) = exec_with_mc(mc, RegBuilder::new().pc(pc_start).sp(sp_start).reg())?;
         assert_eq!(
             sm83.reg.sp, sp_after,
