@@ -541,9 +541,9 @@ fn render_instr(
         emulator.toggle_breakpoint(loc);
     }
 
+    let loc_u = loc as usize;
     let instr_text = if let Some(instr) = may_instr {
-        let loc_u = loc as usize;
-        ui.label(format!("{}           ", byte_text(loc_u, instr, rom)));
+        ui.label(byte_text(loc_u, instr.len(), rom));
 
         let text = instr.text(Some(&rom[loc_u..(loc_u + instr.len())]));
         if instr.op_code == psy::arch::sm83::INSTR_INVALID.op_code {
@@ -552,6 +552,7 @@ fn render_instr(
             text
         }
     } else {
+        ui.label(byte_text(loc_u, 1, rom));
         "???".to_string()
     };
 
@@ -583,13 +584,14 @@ fn instr_in_range(
     result
 }
 
-fn byte_text(loc: usize, instr: &Sm83Instr, rom: &ROM) -> String {
-    match instr.len() {
+fn byte_text(loc: usize, instr_len: usize, rom: &ROM) -> String {
+    let txt = match instr_len {
         1 => format!("{:02X}      ", rom[loc]),
         2 => format!("{:02X} {:02X}   ", rom[loc], rom[loc + 1]),
         3 => format!("{:02X} {:02X} {:02X}", rom[loc], rom[loc + 1], rom[loc + 2]),
-        _ => "        ".to_string(),
-    }
+        0 | _ => "        ".to_string(),
+    };
+    format!("{}           ", txt)
 }
 
 // make sure that the instruction at the current pc is disassembled
