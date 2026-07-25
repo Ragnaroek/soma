@@ -374,19 +374,48 @@ fn test_ld() -> Result<(), ExecErr> {
 
 #[test]
 fn test_ldh() -> Result<(), ExecErr> {
-    let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 1] = [(
-        "(ldh (0xE0) %a)",
-        IO::init(),
-        RegBuilder::new().a(0x42).reg(),
-        &[psy::arch::sm83::INSTR_LDH_TO_IMMEDIATE_FROM_A.op_code, 0xE0],
-        2,
-        RegBuilder::new().a(0x42).reg(),
-        &[(0xFFE0, 0x42)],
-    )];
+    let cases: [(
+        &str,
+        IO,
+        Register,
+        &[u8],
+        u16,
+        Register,
+        &[(u16, u8)],
+        &[(u16, u8)],
+    ); 2] = [
+        (
+            "(ldh (0xE0) %a)",
+            IO::init(),
+            RegBuilder::new().a(0x42).reg(),
+            &[psy::arch::sm83::INSTR_LDH_TO_IMMEDIATE_FROM_A.op_code, 0xE0],
+            2,
+            RegBuilder::new().a(0x42).reg(),
+            &[],
+            &[(0xFFE0, 0x42)],
+        ),
+        (
+            "(ldh %a (0xE0))",
+            IO::init(),
+            RegBuilder::new().a(0x0).reg(),
+            &[psy::arch::sm83::INSTR_LDH_TO_A_FROM_IMMEDIATE.op_code, 0xE0],
+            2,
+            RegBuilder::new().a(0x66).reg(),
+            &[(0xFFE0, 0x66)],
+            &[(0xFFE0, 0x66)],
+        ),
+    ];
 
-    for (exp, io, reg_start, mem, pc_at, reg_after, mem_checks) in cases {
+    for (exp, io, reg_start, mem, pc_at, reg_after, mem_prep, mem_checks) in cases {
         let rom = ROM::new_copy_from_slice(mem);
-        let (sm83, mc) = exec(io, reg_start, rom)?;
+
+        let mut mc = MemoryController::new(io, rom);
+        for prep in mem_prep {
+            mc.write(prep.0, prep.1)?;
+        }
+
+        let (sm83, mc) = exec_with_mc(mc, reg_start)?;
+
         assert_eq!(
             sm83.pc(),
             pc_at,
@@ -717,13 +746,7 @@ fn assert_equal_v_regs(l: &Register, r: &Register, exp: &str) {
 }
 
 fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), ExecErr> {
-    let mc = MemoryController {
-        io: io,
-        rom: Some(rom),
-        vram: [0; 8192],
-        ram: [0; 8192],
-    };
-    exec_with_mc(mc, reg)
+    exec_with_mc(MemoryController::new(io, rom), reg)
 }
 
 fn exec_with_mc(

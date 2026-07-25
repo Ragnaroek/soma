@@ -1,6 +1,6 @@
 use crate::io::IO;
 use crate::rom::ROM;
-use crate::sm83::ExecErr;
+use crate::sm83::{ExecErr, Register};
 
 pub struct MemoryController {
     /// 0x0000 to 0x3FFF ROM Bank 00
@@ -32,6 +32,15 @@ const IO_START: u16 = 0xFF00;
 const IO_END: u16 = 0xFFFF;
 
 impl MemoryController {
+    pub fn new(io: IO, rom: ROM) -> MemoryController {
+        MemoryController {
+            io: io,
+            rom: Some(rom),
+            vram: [0; 8192],
+            ram: [0; 8192],
+        }
+    }
+
     pub fn read(&self, addr: u16) -> u8 {
         if addr <= ROM_0_END {
             if let Some(rom) = &self.rom {

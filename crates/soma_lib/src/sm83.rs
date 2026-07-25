@@ -434,6 +434,14 @@ fn exec_ldh_to_immediate_from_a(sm83: &mut SM83, mc: &mut MemoryController) -> R
     Ok(())
 }
 
+fn exec_ldh_to_a_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let im = mc.read(sm83.pc() + 1) as u16;
+    let addr = 0xFF00 | im;
+    sm83.reg.a = read_high_mem(sm83, mc, addr);
+    sm83.inc_pc(2);
+    Ok(())
+}
+
 fn write_high_mem(
     sm83: &mut SM83,
     mc: &mut MemoryController,
@@ -446,6 +454,14 @@ fn write_high_mem(
         mc.write(addr, v)?;
     }
     Ok(())
+}
+
+fn read_high_mem(sm83: &mut SM83, mc: &mut MemoryController, addr: u16) -> u8 {
+    if addr == 0xFFFF {
+        sm83.reg.ie
+    } else {
+        mc.read(addr)
+    }
 }
 
 fn exec_inc_de(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
@@ -766,7 +782,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xED*/ exec_invalid,
     /*0xEE*/ exec_invalid,
     /*0xEF*/ exec_invalid,
-    /*0xF0*/ exec_invalid,
+    /*0xF0*/ exec_ldh_to_a_from_immediate,
     /*0xF1*/ exec_invalid,
     /*0xF2*/ exec_invalid,
     /*0xF3*/ exec_di,
