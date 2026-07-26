@@ -12,10 +12,10 @@ web = []
 desktop = []
 
 [dependencies]
-clap = { version = "4.6.1", features = ["derive"] }
-eframe = "0.34.1"
-egui = "0.34.1"
-egui-phosphor = { version = "0.12", features = ["regular", "fill"] }
+clap = { version = "4.6.4", features = ["derive"] }
+eframe = "0.35.0"
+egui = "0.35.0"
+egui-phosphor = { version = "0.13", features = ["regular", "fill"] }
 
 libsoma = { path = "../soma_lib", features = ["max_rom_512kb"] }
 psy = { path = "../../../psy/" }
