@@ -717,12 +717,7 @@ fn test_ret() -> Result<(), ExecErr> {
 
     for (exp, mem, sp_start, sp_after, pc_start, pc_after, sp_low, sp_high) in cases {
         let rom = ROM::new_copy_from_slice(&mem);
-        let mut mc = MemoryController {
-            io: IO::init(),
-            rom: Some(rom),
-            vram: [0; 8192],
-            ram: [0; 8192],
-        };
+        let mut mc = MemoryController::new(IO::init(), rom);
         mc.write(sp_start, sp_low)?;
         mc.write(sp_start + 1, sp_high)?;
         let (sm83, _) = exec_with_mc(mc, RegBuilder::new().pc(pc_start).sp(sp_start).reg())?;

@@ -1,8 +1,10 @@
 use crate::io::IO;
 use crate::rom::ROM;
-use crate::sm83::{ExecErr, Register};
+use crate::sm83::ExecErr;
 
 pub struct MemoryController {
+    bank_selected: u16,
+
     /// 0x0000 to 0x3FFF ROM Bank 00
     /// 0x4000 to 0x7FFF ROM Bank NN (switchable banks)
     pub rom: Option<ROM>,
@@ -20,6 +22,11 @@ pub struct MemoryController {
     pub io: IO,
 }
 
+// bank selection related things
+const BANK_SIZE: u16 = 0x3FFF;
+const ROM_BANK_CONTROL_START: u16 = 0x2000;
+const ROM_BANK_CONTORL_END: u16 = 0x3FFF;
+
 // mem space definition (inclusive intervals)
 const ROM_0_END: u16 = 0x3FFF;
 const ROM_N_START: u16 = 0x4000;
@@ -34,6 +41,7 @@ const IO_END: u16 = 0xFFFF;
 impl MemoryController {
     pub fn new(io: IO, rom: ROM) -> MemoryController {
         MemoryController {
+            bank_selected: 0x01,
             io: io,
             rom: Some(rom),
             vram: [0; 8192],
@@ -49,9 +57,9 @@ impl MemoryController {
                 panic!("no ROM attached")
             }
         } else if addr >= ROM_N_START && addr <= ROM_N_END {
-            // TODO implement bank switch
+            let banked_rom_addr = addr + ((self.bank_selected - 1) * BANK_SIZE);
             if let Some(rom) = &self.rom {
-                rom.read_u8(addr as usize)
+                rom.read_u8(banked_rom_addr as usize)
             } else {
                 panic!("no ROM attached")
             }
@@ -79,7 +87,9 @@ impl MemoryController {
     }
 
     pub fn write(&mut self, addr: u16, v: u8) -> Result<(), ExecErr> {
-        if addr >= IO_START && addr <= IO_END {
+        if addr >= ROM_BANK_CONTROL_START && addr <= ROM_BANK_CONTORL_END {
+            self.bank_selected = (v & 0x03) as u16;
+        } else if addr >= IO_START && addr <= IO_END {
             self.io.write(addr, v)?;
         } else if addr >= VRAM_START && addr <= VRAM_END {
             self.vram[(addr - VRAM_START) as usize] = v;

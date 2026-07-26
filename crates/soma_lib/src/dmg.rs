@@ -49,12 +49,8 @@ impl<T> DMG<T> {
         sm83.reg.sp = 0xFFFE;
 
         // allocate the DMG memory
-        let mc = MemoryController {
-            io: IO::init(),
-            vram: [0; 8192],
-            ram: [0; 8192],
-            rom: Some(rom),
-        };
+        let mc = MemoryController::new(IO::init(), rom);
+
         DMG {
             last_refresh_at: 0.0,
             time,
