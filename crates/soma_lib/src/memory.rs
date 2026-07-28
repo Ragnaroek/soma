@@ -18,6 +18,10 @@ pub struct MemoryController {
     // 0xD000 to 0xDFFF 8KB Work RAM
     pub ram: [u8; 8192],
 
+    // 0xFE00 to 0xFEFF 256 bytes Object Attribute Memory.
+    // Including non usable memory from 0xFEA0 to 0xFEFF
+    pub oam: [u8; 256],
+
     /// 0xFF00 to 0xFF7F I/O Ports
     pub io: IO,
 }
@@ -35,6 +39,8 @@ const VRAM_START: u16 = 0x8000;
 const VRAM_END: u16 = 0x9FFF;
 const RAM_START: u16 = 0xC000;
 const RAM_END: u16 = 0xDFFF;
+const OAM_START: u16 = 0xFE00;
+const OAM_END: u16 = 0xFEFF;
 const IO_START: u16 = 0xFF00;
 const IO_END: u16 = 0xFFFF;
 
@@ -42,10 +48,11 @@ impl MemoryController {
     pub fn new(io: IO, rom: ROM) -> MemoryController {
         MemoryController {
             bank_selected: 0x01,
-            io: io,
             rom: Some(rom),
             vram: [0; 8192],
             ram: [0; 8192],
+            oam: [0; 256],
+            io: io,
         }
     }
 
@@ -69,6 +76,8 @@ impl MemoryController {
             self.vram[(addr - VRAM_START) as usize]
         } else if addr >= RAM_START && addr <= RAM_END {
             self.ram[(addr - RAM_START) as usize]
+        } else if addr >= OAM_START && addr <= OAM_END {
+            self.oam[(addr - OAM_START) as usize]
         } else {
             panic!("mem read error: 0x{:x}", addr);
         }
@@ -95,6 +104,8 @@ impl MemoryController {
             self.vram[(addr - VRAM_START) as usize] = v;
         } else if addr >= RAM_START && addr <= RAM_END {
             self.ram[(addr - RAM_START) as usize] = v;
+        } else if addr >= OAM_START && addr <= OAM_END {
+            self.oam[(addr - OAM_START) as usize] = v;
         } else {
             return Err(ExecErr::GeneralError("memory location not writable"));
         }
