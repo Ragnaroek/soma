@@ -408,7 +408,7 @@ fn test_ldh() -> Result<(), ExecErr> {
         Register,
         &[(u16, u8)],
         &[(u16, u8)],
-    ); 2] = [
+    ); 3] = [
         (
             "(ldh (0xE0) %a)",
             IO::init(),
@@ -427,6 +427,16 @@ fn test_ldh() -> Result<(), ExecErr> {
             2,
             RegBuilder::new().a(0x66).reg(),
             &[(0xFFE0, 0x66)],
+            &[(0xFFE0, 0x66)],
+        ),
+        (
+            "(ldh (%c) %a)",
+            IO::init(),
+            RegBuilder::new().c(0xE0).a(0x66).reg(),
+            &[psy::arch::sm83::INSTR_LDH_TO_DEREF_C_FROM_A.op_code],
+            1,
+            RegBuilder::new().c(0xE0).a(0x66).reg(),
+            &[],
             &[(0xFFE0, 0x66)],
         ),
     ];
