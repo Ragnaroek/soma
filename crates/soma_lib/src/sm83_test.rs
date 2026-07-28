@@ -504,6 +504,24 @@ fn test_cp() -> Result<(), ExecErr> {
 fn test_inc() -> Result<(), ExecErr> {
     let cases = [
         (
+            "(inc %c), zero result",
+            RegBuilder::new().c(0xFF).f_z(0).f_n(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_INC_C.op_code],
+            RegBuilder::new().c(0x00).f_z(1).f_n(0).f_h(1).reg(),
+        ),
+        (
+            "(inc %c), non-zero result",
+            RegBuilder::new().c(0x00).f_z(1).f_n(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_INC_C.op_code],
+            RegBuilder::new().c(0x01).f_z(0).f_n(0).f_h(0).reg(),
+        ),
+        (
+            "(inc %c), half-carry",
+            RegBuilder::new().c(0x0F).f_z(1).f_n(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_INC_C.op_code],
+            RegBuilder::new().c(0x10).f_z(0).f_n(0).f_h(1).reg(),
+        ),
+        (
             "(inc %de) with zero %de",
             RegBuilder::new().de(0x00).reg(),
             &[psy::arch::sm83::INSTR_INC_DE.op_code],

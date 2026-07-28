@@ -489,7 +489,18 @@ fn read_high_mem(sm83: &mut SM83, mc: &mut MemoryController, addr: u16) -> u8 {
     }
 }
 
-fn exec_inc_de(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+// INC
+fn exec_inc_c(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
+    let (c_inc, _) = sm83.reg.c.overflowing_add(1);
+    let half_carry = half_carry_inc(sm83.reg.c);
+    sm83.reg.c = c_inc;
+    sm83.reg.set_flag(Z, (c_inc == 0) as u8);
+    sm83.reg.set_flag(N, 0);
+    sm83.reg.set_flag(H, half_carry);
+    sm83.inc_pc(1);
+    Ok(())
+}
+fn exec_inc_de(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
     let de = sm83.reg.de();
     let (de_inc, _) = de.overflowing_add(1);
     sm83.reg.set_de(de_inc);
@@ -497,6 +508,7 @@ fn exec_inc_de(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecEr
     Ok(())
 }
 
+// DEC
 fn exec_dec_bc(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     let bc = sm83.reg.bc();
     let (bc_dec, _) = bc.overflowing_sub(1);
@@ -579,7 +591,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x09*/ exec_invalid,
     /*0x0A*/ exec_invalid,
     /*0x0B*/ exec_dec_bc,
-    /*0x0C*/ exec_invalid,
+    /*0x0C*/ exec_inc_c,
     /*0x0D*/ exec_dec_c,
     /*0x0E*/ exec_ld_to_c_from_immediate,
     /*0x0F*/ exec_invalid,
@@ -829,4 +841,8 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
 
 fn half_carry_dec(v: u8) -> u8 {
     if v & 0x0F == 0x0F { 1 } else { 0 }
+}
+
+fn half_carry_inc(v_before_inc: u8) -> u8 {
+    ((v_before_inc & 0x0F) + 1 > 0x0F) as u8
 }
