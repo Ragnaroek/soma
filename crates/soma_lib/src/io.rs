@@ -41,10 +41,16 @@ impl IO {
         Ok(())
     }
 
-    pub fn read(&self, addr: u16) -> u8 {
-        let v = self.mem_effect[(addr - 0xFF00) as usize].value;
-        //panic!("mc read = {:x}, v = {:x}", addr, v);
-        v
+    pub fn read(&self, addr: u16) -> Result<u8, ExecErr> {
+        if addr < 0xFF00 {
+            return Err(ExecErr::GeneralError("IO read below 0xFF00"));
+        }
+        let offset = (addr - 0xFF00) as usize;
+        if offset >= self.mem_effect.len() {
+            return Err(ExecErr::GeneralError("IO read above 0xFFFF"));
+        }
+        let v = self.mem_effect[offset].value;
+        Ok(v)
     }
 }
 

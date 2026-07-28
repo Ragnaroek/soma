@@ -56,43 +56,47 @@ impl MemoryController {
         }
     }
 
-    pub fn read(&self, addr: u16) -> u8 {
+    pub fn read(&self, addr: u16) -> Result<u8, ExecErr> {
         if addr <= ROM_0_END {
             if let Some(rom) = &self.rom {
                 rom.read_u8(addr as usize)
+                    .map_err(|e| ExecErr::GeneralError(e))
             } else {
-                panic!("no ROM attached")
+                return Err(ExecErr::GeneralError("no ROM attached"));
             }
         } else if addr >= ROM_N_START && addr <= ROM_N_END {
             let banked_rom_addr = addr + ((self.bank_selected - 1) * BANK_SIZE);
             if let Some(rom) = &self.rom {
                 rom.read_u8(banked_rom_addr as usize)
+                    .map_err(|e| ExecErr::GeneralError(e))
             } else {
-                panic!("no ROM attached")
+                return Err(ExecErr::GeneralError("no ROM attached"));
             }
         } else if addr >= IO_START && addr <= IO_END {
             self.io.read(addr)
         } else if addr >= VRAM_START && addr <= VRAM_END {
-            self.vram[(addr - VRAM_START) as usize]
+            Ok(self.vram[(addr - VRAM_START) as usize])
         } else if addr >= RAM_START && addr <= RAM_END {
-            self.ram[(addr - RAM_START) as usize]
+            Ok(self.ram[(addr - RAM_START) as usize])
         } else if addr >= OAM_START && addr <= OAM_END {
-            self.oam[(addr - OAM_START) as usize]
+            Ok(self.oam[(addr - OAM_START) as usize])
         } else {
-            panic!("mem read error: 0x{:x}", addr);
+            return Err(ExecErr::GeneralError("mem read error"));
         }
     }
 
     /// Only possible from the ROM address space.
-    pub fn read_u16(&self, addr: u16) -> u16 {
+    pub fn read_u16(&self, addr: u16) -> Result<u16, ExecErr> {
         if addr < ROM_0_END {
             if let Some(rom) = &self.rom {
-                return rom.read_u16(addr as usize);
+                return rom
+                    .read_u16(addr as usize)
+                    .map_err(|e| ExecErr::GeneralError(e));
             } else {
-                panic!("no ROM attached")
+                return Err(ExecErr::GeneralError("no ROM attached"));
             }
         }
-        panic!("mem read double outside ROM space")
+        return Err(ExecErr::GeneralError("mem read addr outside ROM space"));
     }
 
     pub fn write(&mut self, addr: u16, v: u8) -> Result<(), ExecErr> {

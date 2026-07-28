@@ -93,7 +93,7 @@ impl<T> DMG<T> {
     /// framebuffer in RGB format.
     /// The size needs to be at least 20 x 18 x 64 x 3 bytes.
     /// 1.474.560 pixel
-    pub fn fb_rgb(&self, fb: &mut [u8]) {
+    pub fn fb_rgb(&self, fb: &mut [u8]) -> Result<(), ExecErr> {
         // 20x18 only visible, only render that and figure out
         // how the window is slided
         for y in 0..32usize {
@@ -102,14 +102,14 @@ impl<T> DMG<T> {
                 let mut dst = (y * 8 * 3 * 32 * 8) + (x * 8 * 3);
 
                 let tile_map_addr = 0x9800 + y as u16 * 32 + x as u16;
-                let tile_map_ix = self.mc.read(tile_map_addr) as u16;
+                let tile_map_ix = self.mc.read(tile_map_addr)? as u16;
                 let tile_start = 0x9000 + tile_map_ix * 16;
 
                 let mut tile_i = tile_start;
                 for _tile_row in 0..8 {
-                    let col_0 = self.mc.read(tile_i);
+                    let col_0 = self.mc.read(tile_i)?;
                     tile_i += 1;
-                    let col_1 = self.mc.read(tile_i);
+                    let col_1 = self.mc.read(tile_i)?;
                     tile_i += 1;
 
                     for tile_col in (0..8).rev() {
@@ -156,5 +156,6 @@ impl<T> DMG<T> {
                 }
             }
         }
+        Ok(())
     }
 }

@@ -48,12 +48,15 @@ impl ROM {
         self.size
     }
 
-    pub fn read_u8(&self, ix: usize) -> u8 {
-        self.data_buffer[ix]
+    pub fn read_u8(&self, ix: usize) -> Result<u8, &'static str> {
+        Ok(self.data_buffer[ix])
     }
 
-    pub fn read_u16(&self, ix: usize) -> u16 {
-        u16::from_le_bytes([self.data_buffer[ix], self.data_buffer[ix + 1]])
+    pub fn read_u16(&self, ix: usize) -> Result<u16, &'static str> {
+        Ok(u16::from_le_bytes([
+            self.data_buffer[ix],
+            self.data_buffer[ix + 1],
+        ]))
     }
 }
 

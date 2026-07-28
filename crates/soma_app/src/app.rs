@@ -174,7 +174,9 @@ impl SomaApp {
                                     for y in 0..32 {
                                         ui.label(format!(
                                             "{:03}\u{2009}",
-                                            dmg.mc.read(0x9800 + y * 32 + x)
+                                            dmg.mc
+                                                .read(0x9800 + y * 32 + x)
+                                                .expect("tilemap value")
                                         ));
                                     }
                                     ui.end_row();
@@ -606,7 +608,7 @@ fn disassemble_pc(
     if let Some(instr) = may_pc_instr {
         instr
     } else {
-        let instr = psy::arch::sm83::decode(dmg.mc.read(pc));
+        let instr = psy::arch::sm83::decode(dmg.mc.read(pc).expect("instruction"));
         cache.insert(pc, instr);
         instr
     }

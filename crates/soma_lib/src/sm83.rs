@@ -212,7 +212,7 @@ impl SM83 {
     }
 
     pub fn execute(&mut self, mc: &mut MemoryController) -> Result<&'static Sm83Instr, ExecErr> {
-        let instr = sm83::decode(mc.read(self.pc()));
+        let instr = sm83::decode(mc.read(self.pc())?);
         EXEC_TABLE[instr.op_code as usize](self, mc)?;
         Ok(instr)
     }
@@ -246,7 +246,7 @@ type Sm83Exec = fn(&mut SM83, &mut MemoryController) -> Result<(), ExecErr>;
 
 fn exec_invalid(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let pc = sm83.pc();
-    let op = mc.read(pc);
+    let op = mc.read(pc)?;
     Err(ExecErr::InvalidInstruction(op, pc))
 }
 
@@ -263,7 +263,7 @@ fn exec_di(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
 }
 
 fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let v = mc.read(sm83.pc() + 1);
+    let v = mc.read(sm83.pc() + 1)?;
     let (z, carry) = sm83.reg.a.overflowing_sub(v);
     sm83.reg.set_flag(Z, z);
     sm83.reg.set_flag(N, 1);
@@ -274,20 +274,20 @@ fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), E
 }
 
 fn exec_jp(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let addr = mc.read_u16(sm83.pc() + 1);
+    let addr = mc.read_u16(sm83.pc() + 1)?;
     sm83.set_pc(addr);
     Ok(())
 }
 
 fn exec_jr(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let rel = mc.read(sm83.pc() + 1) as i8;
+    let rel = mc.read(sm83.pc() + 1)? as i8;
     sm83.inc_pc(2); // relative jump is computed after the instruction
     sm83.set_pc(sm83.pc().saturating_add_signed(rel as i16));
     Ok(())
 }
 
 fn exec_jr_if_c(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let rel = mc.read(sm83.pc() + 1) as i8;
+    let rel = mc.read(sm83.pc() + 1)? as i8;
     sm83.inc_pc(2); // relative jump is computed after the instruction
     if (sm83.reg.f & C) != 0 {
         sm83.set_pc(sm83.pc().saturating_add_signed(rel as i16));
@@ -296,7 +296,7 @@ fn exec_jr_if_c(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecEr
 }
 
 fn exec_jr_if_nz(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let rel = mc.read(sm83.pc() + 1) as i8;
+    let rel = mc.read(sm83.pc() + 1)? as i8;
     sm83.inc_pc(2); // relative jump is computed after the instruction
     if (sm83.reg.f & Z) == 0 {
         sm83.set_pc(sm83.pc().saturating_add_signed(rel as i16));
@@ -305,21 +305,21 @@ fn exec_jr_if_nz(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecE
 }
 
 fn exec_ld_to_a_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let val = mc.read(sm83.pc() + 1);
+    let val = mc.read(sm83.pc() + 1)?;
     sm83.reg.a = val;
     sm83.inc_pc(2);
     Ok(())
 }
 
 fn exec_ld_to_b_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let val = mc.read(sm83.pc() + 1);
+    let val = mc.read(sm83.pc() + 1)?;
     sm83.reg.b = val;
     sm83.inc_pc(2);
     Ok(())
 }
 
 fn exec_ld_to_c_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let val = mc.read(sm83.pc() + 1);
+    let val = mc.read(sm83.pc() + 1)?;
     sm83.reg.c = val;
     sm83.inc_pc(2);
     Ok(())
@@ -327,7 +327,7 @@ fn exec_ld_to_c_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Re
 
 fn exec_ld_to_a_from_deref_de(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = sm83.reg.de();
-    let v = mc.read(addr);
+    let v = mc.read(addr)?;
     sm83.reg.a = v;
     sm83.inc_pc(1);
     Ok(())
@@ -339,8 +339,8 @@ fn exec_nop(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
 }
 
 fn exec_ld_to_de_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let lsb = mc.read(sm83.pc() + 1);
-    let msb = mc.read(sm83.pc() + 2);
+    let lsb = mc.read(sm83.pc() + 1)?;
+    let msb = mc.read(sm83.pc() + 2)?;
     sm83.reg.d = msb;
     sm83.reg.e = lsb;
     sm83.inc_pc(3);
@@ -348,8 +348,8 @@ fn exec_ld_to_de_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> R
 }
 
 fn exec_ld_to_hl_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let lsb = mc.read(sm83.pc() + 1);
-    let msb = mc.read(sm83.pc() + 2);
+    let lsb = mc.read(sm83.pc() + 1)?;
+    let msb = mc.read(sm83.pc() + 2)?;
     sm83.reg.h = msb;
     sm83.reg.l = lsb;
     sm83.inc_pc(3);
@@ -357,8 +357,8 @@ fn exec_ld_to_hl_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> R
 }
 
 fn exec_ld_to_bc_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let lsb = mc.read(sm83.pc() + 1);
-    let msb = mc.read(sm83.pc() + 2);
+    let lsb = mc.read(sm83.pc() + 1)?;
+    let msb = mc.read(sm83.pc() + 2)?;
     sm83.reg.b = msb;
     sm83.reg.c = lsb;
     sm83.inc_pc(3);
@@ -366,7 +366,7 @@ fn exec_ld_to_bc_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> R
 }
 
 fn exec_ld_to_sp_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let v = mc.read_u16(sm83.pc() + 1);
+    let v = mc.read_u16(sm83.pc() + 1)?;
     sm83.reg.sp = v;
     sm83.inc_pc(3);
     Ok(())
@@ -376,7 +376,7 @@ fn exec_ld_to_deref_label_from_a(
     sm83: &mut SM83,
     mc: &mut MemoryController,
 ) -> Result<(), ExecErr> {
-    let addr = mc.read_u16(sm83.pc() + 1);
+    let addr = mc.read_u16(sm83.pc() + 1)?;
     mc.write(addr, sm83.reg.a)?;
     sm83.inc_pc(3);
     Ok(())
@@ -387,7 +387,7 @@ fn exec_ld_to_deref_hl_from_immediate(
     mc: &mut MemoryController,
 ) -> Result<(), ExecErr> {
     let addr = sm83.reg.hl();
-    let v = mc.read(sm83.pc() + 1);
+    let v = mc.read(sm83.pc() + 1)?;
     mc.write(addr, v)?;
     sm83.inc_pc(2);
     Ok(())
@@ -419,8 +419,8 @@ fn exec_ld_to_a_from_deref_label(
     sm83: &mut SM83,
     mc: &mut MemoryController,
 ) -> Result<(), ExecErr> {
-    let addr = mc.read_u16(sm83.pc() + 1);
-    let v = mc.read(addr);
+    let addr = mc.read_u16(sm83.pc() + 1)?;
+    let v = mc.read(addr)?;
     sm83.reg.a = v;
     sm83.inc_pc(3);
     Ok(())
@@ -431,7 +431,7 @@ fn exec_ld_to_a_from_deref_hl_inc(
     mc: &mut MemoryController,
 ) -> Result<(), ExecErr> {
     let addr = sm83.reg.hl();
-    let v = mc.read(addr);
+    let v = mc.read(addr)?;
     sm83.reg.a = v;
     sm83.reg.set_hl(addr + 1);
     sm83.inc_pc(1);
@@ -445,7 +445,7 @@ fn exec_ld_to_a_from_b(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<()
 }
 
 fn exec_ldh_to_immediate_from_a(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let im = mc.read(sm83.pc() + 1) as u16;
+    let im = mc.read(sm83.pc() + 1)? as u16;
     let addr = 0xFF00 | im;
     write_high_mem(sm83, mc, addr, sm83.reg.a)?;
     sm83.inc_pc(2);
@@ -453,9 +453,9 @@ fn exec_ldh_to_immediate_from_a(sm83: &mut SM83, mc: &mut MemoryController) -> R
 }
 
 fn exec_ldh_to_a_from_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let im = mc.read(sm83.pc() + 1) as u16;
+    let im = mc.read(sm83.pc() + 1)? as u16;
     let addr = 0xFF00 | im;
-    sm83.reg.a = read_high_mem(sm83, mc, addr);
+    sm83.reg.a = read_high_mem(sm83, mc, addr)?;
     sm83.inc_pc(2);
     Ok(())
 }
@@ -481,9 +481,9 @@ fn write_high_mem(
     Ok(())
 }
 
-fn read_high_mem(sm83: &mut SM83, mc: &mut MemoryController, addr: u16) -> u8 {
+fn read_high_mem(sm83: &mut SM83, mc: &mut MemoryController, addr: u16) -> Result<u8, ExecErr> {
     if addr == 0xFFFF {
-        sm83.reg.ie
+        Ok(sm83.reg.ie)
     } else {
         mc.read(addr)
     }
@@ -555,7 +555,7 @@ fn exec_xor_a_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecE
 }
 
 fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let addr = mc.read_u16(sm83.pc() + 1);
+    let addr = mc.read_u16(sm83.pc() + 1)?;
 
     let pc = (sm83.pc() + 3).to_le_bytes();
     sm83.dec_sp(1);
@@ -568,9 +568,9 @@ fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> 
 }
 
 fn exec_ret(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let lsb = mc.read(sm83.reg.sp);
+    let lsb = mc.read(sm83.reg.sp)?;
     sm83.inc_sp(1);
-    let msb = mc.read(sm83.reg.sp);
+    let msb = mc.read(sm83.reg.sp)?;
     sm83.inc_sp(1);
 
     let addr = u16::from_le_bytes([lsb, msb]);

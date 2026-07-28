@@ -130,7 +130,7 @@ fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<Frame
                 // update framebuffer
                 let mut fb = frame_buffer_lock.write().unwrap();
                 let dmg = emulation.dmg_read_lock();
-                dmg.fb_rgb(&mut fb.buffer);
+                dmg.fb_rgb(&mut fb.buffer).expect("fb update");
                 fb.needs_update = true;
             }
         } else {

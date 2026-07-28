@@ -204,7 +204,7 @@ fn read_memory(emulation: &Arc<Emulation>, range: MemoryRange) -> Packet {
             // RAM, sprite table and echo RAM not readable yet
             write!(&mut result, "{:02x}", 0).unwrap();
         } else if p < 0xFFFF {
-            let byte = dmg.mc.read(p as u16);
+            let byte = dmg.mc.read(p as u16).expect("mem read");
             write!(&mut result, "{:02x}", byte).unwrap();
         } else {
             write!(&mut result, "{:02x}", 0).unwrap();

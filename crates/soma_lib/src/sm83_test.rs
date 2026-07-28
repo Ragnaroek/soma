@@ -386,7 +386,7 @@ fn test_ld() -> Result<(), ExecErr> {
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
 
         for check in mem_checks {
-            let mem_value = mc.read(check.0);
+            let mem_value = mc.read(check.0)?;
             assert_eq!(
                 mem_value, check.1,
                 "expected memory location 0x{:x} to have value 0x{:x}. But was 0x{:x}",
@@ -462,7 +462,7 @@ fn test_ldh() -> Result<(), ExecErr> {
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
 
         for check in mem_checks {
-            let mem_value = mc.read(check.0);
+            let mem_value = mc.read(check.0)?;
             assert_eq!(
                 mem_value, check.1,
                 "expected memory location 0x{:x} to have value 0x{:x}. But was 0x{:x}",
@@ -728,16 +728,16 @@ fn test_call() -> Result<(), ExecErr> {
         );
         assert_eq!(sm83.reg.sp, 0xFFFC);
         assert_eq!(
-            mc.read(0xFFFC),
+            mc.read(0xFFFC)?,
             0x6A,
             "got 0x{:x}, want 0x6A",
-            mc.read(0xFFFC)
+            mc.read(0xFFFC)?
         );
         assert_eq!(
-            mc.read(0xFFFD),
+            mc.read(0xFFFD)?,
             0x01,
             "got 0x{:x}, want 0x01",
-            mc.read(0xFFFD)
+            mc.read(0xFFFD)?
         );
     }
     Ok(())
