@@ -65,9 +65,8 @@ impl MemoryController {
                 return Err(ExecErr::GeneralError("no ROM attached"));
             }
         } else if addr >= ROM_N_START && addr <= ROM_N_END {
-            let banked_rom_addr = addr + ((self.bank_selected - 1) * BANK_SIZE);
             if let Some(rom) = &self.rom {
-                rom.read_u8(banked_rom_addr as usize)
+                rom.read_u8(self.banked_addr(addr) as usize)
                     .map_err(|e| ExecErr::GeneralError(e))
             } else {
                 return Err(ExecErr::GeneralError("no ROM attached"));
@@ -93,10 +92,22 @@ impl MemoryController {
                     .read_u16(addr as usize)
                     .map_err(|e| ExecErr::GeneralError(e));
             } else {
-                return Err(ExecErr::GeneralError("no ROM attached"));
+                Err(ExecErr::GeneralError("no ROM attached"))
             }
+        } else if addr >= ROM_N_START && addr <= ROM_N_END {
+            if let Some(rom) = &self.rom {
+                rom.read_u16(self.banked_addr(addr) as usize)
+                    .map_err(|e| ExecErr::GeneralError(e))
+            } else {
+                Err(ExecErr::GeneralError("no ROM attached"))
+            }
+        } else {
+            Err(ExecErr::GeneralError("mem read addr outside ROM space"))
         }
-        return Err(ExecErr::GeneralError("mem read addr outside ROM space"));
+    }
+
+    fn banked_addr(&self, addr: u16) -> u16 {
+        addr + ((self.bank_selected - 1) * BANK_SIZE)
     }
 
     pub fn write(&mut self, addr: u16, v: u8) -> Result<(), ExecErr> {
