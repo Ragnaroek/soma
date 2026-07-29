@@ -554,6 +554,14 @@ fn exec_xor_a_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecE
     Ok(())
 }
 
+fn exec_cpl(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    sm83.reg.a = !sm83.reg.a;
+    sm83.reg.set_flag(N, 1);
+    sm83.reg.set_flag(H, 1);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = mc.read_u16(sm83.pc() + 1)?;
 
@@ -626,7 +634,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x2C*/ exec_invalid,
     /*0x2D*/ exec_invalid,
     /*0x2E*/ exec_invalid,
-    /*0x2F*/ exec_invalid,
+    /*0x2F*/ exec_cpl,
     /*0x30*/ exec_invalid,
     /*0x31*/ exec_ld_to_sp_from_immediate,
     /*0x32*/ exec_ld_to_deref_hl_dec_from_a,

@@ -705,6 +705,45 @@ fn test_xor() -> Result<(), ExecErr> {
 }
 
 #[test]
+fn test_cpl() -> Result<(), ExecErr> {
+    let cases = [
+        (
+            "(cpl) zero",
+            RegBuilder::new().a(0x00).f_n(0).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_CPL.op_code],
+            RegBuilder::new().a(0xFF).f_n(1).f_h(1).reg(),
+        ),
+        (
+            "(cpl) FF",
+            RegBuilder::new().a(0xFF).f_n(0).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_CPL.op_code],
+            RegBuilder::new().a(0x00).f_n(1).f_h(1).reg(),
+        ),
+        (
+            "(cpl) mixed",
+            RegBuilder::new().a(0b01010101).f_n(0).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_CPL.op_code],
+            RegBuilder::new().a(0b10101010).f_n(1).f_h(1).reg(),
+        ),
+    ];
+
+    for (exp, reg_init, mem, reg_after) in cases {
+        let rom = ROM::new_copy_from_slice(mem);
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            1,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            1,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
+#[test]
 fn test_call() -> Result<(), ExecErr> {
     let mut mem = [psy::arch::sm83::INSTR_INVALID.op_code; 0x166 + 4];
     mem[0x167] = psy::arch::sm83::INSTR_CALL.op_code;
