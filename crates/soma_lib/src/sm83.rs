@@ -544,6 +544,17 @@ fn exec_or_a_c(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecEr
     Ok(())
 }
 
+fn exec_and_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let im = mc.read(sm83.pc() + 1)?;
+    sm83.reg.a = sm83.reg.a & im;
+    sm83.reg.set_flag(Z, (sm83.reg.a == 0) as u8);
+    sm83.reg.set_flag(N, 0);
+    sm83.reg.set_flag(H, 1);
+    sm83.reg.set_flag(C, 0);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_xor_a_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.reg.a = 0;
     sm83.reg.set_flag(Z, 0);
@@ -817,7 +828,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xE3*/ exec_invalid,
     /*0xE4*/ exec_invalid,
     /*0xE5*/ exec_invalid,
-    /*0xE6*/ exec_invalid,
+    /*0xE6*/ exec_and_immediate,
     /*0xE7*/ exec_invalid,
     /*0xE8*/ exec_invalid,
     /*0xE9*/ exec_invalid,
