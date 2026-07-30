@@ -449,6 +449,12 @@ fn exec_ld_to_a_from_b(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<()
     Ok(())
 }
 
+fn exec_ld_to_b_from_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    sm83.reg.b = sm83.reg.a;
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_ldh_to_immediate_from_a(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let im = mc.read(sm83.pc() + 1)? as u16;
     let addr = 0xFF00 | im;
@@ -620,7 +626,7 @@ fn exec_prefix(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr
     Ok(())
 }
 
-fn exec_prefix_invalid(sm83: &mut SM83) -> Result<(), ExecErr> {
+fn exec_prefix_invalid(_sm83: &mut SM83) -> Result<(), ExecErr> {
     Err(ExecErr::GeneralError("invalid prefix instruction"))
 }
 
@@ -708,7 +714,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x44*/ exec_invalid,
     /*0x45*/ exec_invalid,
     /*0x46*/ exec_invalid,
-    /*0x47*/ exec_invalid,
+    /*0x47*/ exec_ld_to_b_from_a,
     /*0x48*/ exec_invalid,
     /*0x49*/ exec_invalid,
     /*0x4A*/ exec_invalid,
