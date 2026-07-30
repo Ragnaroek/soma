@@ -705,10 +705,10 @@ fn test_and() -> Result<(), ExecErr> {
         let (sm83, _) = exec(IO::init(), reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
-            1,
+            2,
             "{}, want pc 0x{:x}, got 0x{:x}",
             exp,
-            1,
+            2,
             sm83.pc()
         );
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
@@ -769,6 +769,63 @@ fn test_cpl() -> Result<(), ExecErr> {
             RegBuilder::new().a(0b01010101).f_n(0).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_CPL.op_code],
             RegBuilder::new().a(0b10101010).f_n(1).f_h(1).reg(),
+        ),
+    ];
+
+    for (exp, reg_init, mem, reg_after) in cases {
+        let rom = ROM::new_copy_from_slice(mem);
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            1,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            1,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
+#[test]
+fn test_rotate_circular() -> Result<(), ExecErr> {
+    let cases = [
+        (
+            "(RRCA) carry set",
+            RegBuilder::new()
+                .a(0b01010101)
+                .f_z(1)
+                .f_n(1)
+                .f_h(1)
+                .f_c(0)
+                .reg(),
+            &[psy::arch::sm83::INSTR_RRCA.op_code],
+            RegBuilder::new()
+                .a(0b10101010)
+                .f_z(0)
+                .f_n(0)
+                .f_h(0)
+                .f_c(1)
+                .reg(),
+        ),
+        (
+            "(RRCA) carry not set",
+            RegBuilder::new()
+                .a(0b10101010)
+                .f_z(1)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
+            &[psy::arch::sm83::INSTR_RRCA.op_code],
+            RegBuilder::new()
+                .a(0b01010101)
+                .f_z(0)
+                .f_n(0)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
         ),
     ];
 

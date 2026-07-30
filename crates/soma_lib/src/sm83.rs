@@ -551,7 +551,7 @@ fn exec_and_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), 
     sm83.reg.set_flag(N, 0);
     sm83.reg.set_flag(H, 1);
     sm83.reg.set_flag(C, 0);
-    sm83.inc_pc(1);
+    sm83.inc_pc(2);
     Ok(())
 }
 
@@ -569,6 +569,17 @@ fn exec_cpl(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> 
     sm83.reg.a = !sm83.reg.a;
     sm83.reg.set_flag(N, 1);
     sm83.reg.set_flag(H, 1);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
+fn exec_rrca(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let c = sm83.reg.a & 0x01;
+    sm83.reg.a = sm83.reg.a.rotate_right(1);
+    sm83.reg.set_flag(Z, 0);
+    sm83.reg.set_flag(N, 0);
+    sm83.reg.set_flag(H, 0);
+    sm83.reg.set_flag(C, c);
     sm83.inc_pc(1);
     Ok(())
 }
@@ -613,7 +624,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x0C*/ exec_inc_c,
     /*0x0D*/ exec_dec_c,
     /*0x0E*/ exec_ld_to_c_from_immediate,
-    /*0x0F*/ exec_invalid,
+    /*0x0F*/ exec_rrca,
     /*0x10*/ exec_invalid,
     /*0x11*/ exec_ld_to_de_from_immediate,
     /*0x12*/ exec_invalid,
