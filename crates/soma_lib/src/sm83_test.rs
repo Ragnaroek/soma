@@ -1,7 +1,7 @@
 use crate::io::IO;
 use crate::memory::MemoryController;
 use crate::rom::ROM;
-use crate::sm83::{ExecErr, RegBuilder, Register, SM83};
+use crate::sm83::{C, ExecErr, H, N, RegBuilder, Register, SM83, Z};
 
 #[test]
 fn test_err() -> Result<(), ExecErr> {
@@ -920,18 +920,65 @@ fn test_ret() -> Result<(), ExecErr> {
     Ok(())
 }
 
+#[test]
+fn test_prefix() -> Result<(), ExecErr> {
+    let cases = [
+        (
+            "(swap %a) zero",
+            RegBuilder::new().a(0x00).f_z(0).f_n(1).f_h(1).f_c(1).reg(),
+            &[
+                psy::arch::sm83::INSTR_PREFIX.op_code,
+                psy::arch::sm83::INSTR_PREFIX_SWAP_A.op_code,
+            ],
+            RegBuilder::new().a(0x00).f_z(1).f_n(0).f_h(0).f_c(0).reg(),
+        ),
+        (
+            "(swap %a) non-zero",
+            RegBuilder::new().a(0xFA).f_z(1).f_n(1).f_h(1).f_c(1).reg(),
+            &[
+                psy::arch::sm83::INSTR_PREFIX.op_code,
+                psy::arch::sm83::INSTR_PREFIX_SWAP_A.op_code,
+            ],
+            RegBuilder::new().a(0xAF).f_z(0).f_n(0).f_h(0).f_c(0).reg(),
+        ),
+    ];
+
+    for (exp, reg_init, mem, reg_after) in cases {
+        let rom = ROM::new_copy_from_slice(mem);
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            2,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            2,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
 // helper
 
 /// conly compares the value register a to l, without pc and sp.
 fn assert_equal_v_regs(l: &Register, r: &Register, exp: &str) {
-    assert_eq!(l.a, r.a, "reg a: {}", exp);
+    assert_eq!(
+        l.a, r.a,
+        "reg a: left 0x{:x} right 0x{:x}, exp: {}",
+        l.a, r.a, exp
+    );
     assert_eq!(l.b, r.b, "reg b: {}", exp);
     assert_eq!(l.c, r.c, "reg c: {}", exp);
     assert_eq!(l.d, r.d, "reg d: {}", exp);
     assert_eq!(l.e, r.e, "reg e: {}", exp);
-    assert_eq!(l.f, r.f, "reg f: {}", exp);
     assert_eq!(l.h, r.h, "reg h: {}", exp);
     assert_eq!(l.l, r.l, "reg l: {}", exp);
+    // flag check
+    assert_eq!(l.get_flag(Z), r.get_flag(Z), "flag z: {}", exp);
+    assert_eq!(l.get_flag(N), r.get_flag(N), "flag z: {}", exp);
+    assert_eq!(l.get_flag(H), r.get_flag(H), "flag z: {}", exp);
+    assert_eq!(l.get_flag(C), r.get_flag(C), "flag z: {}", exp);
 }
 
 fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), ExecErr> {
