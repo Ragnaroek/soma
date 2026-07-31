@@ -651,16 +651,84 @@ fn test_dec() -> Result<(), ExecErr> {
 fn test_or() -> Result<(), ExecErr> {
     let cases = [
         (
+            "(or %a %b) non-zero result",
+            RegBuilder::new()
+                .a(0x01)
+                .b(0x10)
+                .f_z(1)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
+            &[psy::arch::sm83::INSTR_OR_A_B.op_code],
+            RegBuilder::new()
+                .a(0x11)
+                .b(0x10)
+                .f_z(0)
+                .f_n(0)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
+        ),
+        (
+            "(or %a %b) zero result",
+            RegBuilder::new()
+                .a(0x00)
+                .c(0x00)
+                .f_z(0)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
+            &[psy::arch::sm83::INSTR_OR_A_B.op_code],
+            RegBuilder::new()
+                .a(0x00)
+                .c(0x00)
+                .f_z(1)
+                .f_n(0)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
+        ),
+        (
             "(or %a %c) non-zero result",
-            RegBuilder::new().a(0x01).c(0x10).f_z(1).reg(),
+            RegBuilder::new()
+                .a(0x01)
+                .c(0x10)
+                .f_z(1)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
             &[psy::arch::sm83::INSTR_OR_A_C.op_code],
-            RegBuilder::new().a(0x11).c(0x10).f_z(0).reg(),
+            RegBuilder::new()
+                .a(0x11)
+                .c(0x10)
+                .f_z(0)
+                .f_n(0)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
         ),
         (
             "(or %a %c) zero result",
-            RegBuilder::new().a(0x00).c(0x00).f_z(0).reg(),
+            RegBuilder::new()
+                .a(0x00)
+                .c(0x00)
+                .f_z(0)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
             &[psy::arch::sm83::INSTR_OR_A_C.op_code],
-            RegBuilder::new().a(0x00).c(0x00).f_z(1).reg(),
+            RegBuilder::new()
+                .a(0x00)
+                .c(0x00)
+                .f_z(1)
+                .f_n(0)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
         ),
     ];
 
