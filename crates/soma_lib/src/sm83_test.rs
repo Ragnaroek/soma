@@ -817,6 +817,46 @@ fn test_xor() -> Result<(), ExecErr> {
             &[psy::arch::sm83::INSTR_XOR_A_A.op_code],
             RegBuilder::new().a(0x00).f_z(0).f_n(0).f_h(0).f_c(0).reg(),
         ),
+        (
+            "(xor %a %c) - with zero result",
+            RegBuilder::new()
+                .a(0x11)
+                .c(0x11)
+                .f_z(0)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(), // flags are all reset
+            &[psy::arch::sm83::INSTR_XOR_A_C.op_code],
+            RegBuilder::new()
+                .a(0x00)
+                .c(0x11)
+                .f_z(1)
+                .f_n(0)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
+        ),
+        (
+            "(xor %a %c) - with non-zero result",
+            RegBuilder::new()
+                .a(0x11)
+                .c(0x10)
+                .f_z(1)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
+            &[psy::arch::sm83::INSTR_XOR_A_C.op_code],
+            RegBuilder::new()
+                .a(0x01)
+                .c(0x10)
+                .f_z(0)
+                .f_n(0)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
+        ),
     ];
 
     for (exp, reg_init, mem, reg_after) in cases {
