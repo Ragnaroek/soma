@@ -759,12 +759,13 @@ fn test_or() -> Result<(), ExecErr> {
 
 #[test]
 fn test_and() -> Result<(), ExecErr> {
-    let cases = [
+    let cases: [(&str, Register, &[u8], Register, u16); 4] = [
         (
             "(and %a 0x43) zero result",
             RegBuilder::new().a(0x00).f_z(0).f_n(1).f_h(0).f_c(1).reg(),
             &[psy::arch::sm83::INSTR_AND_A_IMMEDIATE.op_code, 0x43],
             RegBuilder::new().a(0x00).f_z(1).f_n(0).f_h(1).f_c(0).reg(),
+            2,
         ),
         (
             "(and %a 0b00001010) non-zero result",
@@ -783,18 +784,61 @@ fn test_and() -> Result<(), ExecErr> {
                 .f_h(1)
                 .f_c(0)
                 .reg(),
+            2,
+        ),
+        (
+            "(and %a %c) zero result",
+            RegBuilder::new()
+                .a(0b11110000)
+                .c(0b00001111)
+                .f_z(0)
+                .f_n(1)
+                .f_h(0)
+                .f_c(1)
+                .reg(),
+            &[psy::arch::sm83::INSTR_AND_A_C.op_code],
+            RegBuilder::new()
+                .a(0x00)
+                .c(0b00001111)
+                .f_z(1)
+                .f_n(0)
+                .f_h(1)
+                .f_c(0)
+                .reg(),
+            1,
+        ),
+        (
+            "(and %a %c) non-zero result",
+            RegBuilder::new()
+                .a(0b11111000)
+                .c(0b00001010)
+                .f_z(1)
+                .f_n(1)
+                .f_h(0)
+                .f_c(1)
+                .reg(),
+            &[psy::arch::sm83::INSTR_AND_A_C.op_code],
+            RegBuilder::new()
+                .a(0b00001000)
+                .c(0b00001010)
+                .f_z(0)
+                .f_n(0)
+                .f_h(1)
+                .f_c(0)
+                .reg(),
+            1,
         ),
     ];
 
-    for (exp, reg_init, mem, reg_after) in cases {
+    for (exp, reg_init, mem, reg_after, pc) in cases {
         let rom = ROM::new_copy_from_slice(mem);
         let (sm83, _) = exec(IO::init(), reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
-            2,
+            pc,
             "{}, want pc 0x{:x}, got 0x{:x}",
             exp,
-            2,
+            pc,
             sm83.pc()
         );
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
