@@ -646,15 +646,7 @@ fn exec_rrca(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr>
 
 fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = mc.read_u16(sm83.pc() + 1)?;
-
-    let pc = (sm83.pc() + 3).to_le_bytes();
-    sm83.dec_sp(1);
-    mc.write(sm83.reg.sp, pc[1])?; // MSB first, as stack is _decreased_
-    sm83.dec_sp(1);
-    mc.write(sm83.reg.sp, pc[0])?;
-
-    sm83.set_pc(addr);
-    Ok(())
+    internal_call_to_addr(sm83, mc, addr, 3)
 }
 
 fn exec_ret(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
@@ -664,6 +656,26 @@ fn exec_ret(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.inc_sp(1);
 
     let addr = u16::from_le_bytes([lsb, msb]);
+    sm83.set_pc(addr);
+    Ok(())
+}
+
+fn exec_rst_28(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    internal_call_to_addr(sm83, mc, 0x28, 1)
+}
+
+fn internal_call_to_addr(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+    addr: u16,
+    op_size: u16,
+) -> Result<(), ExecErr> {
+    let pc = (sm83.pc() + op_size).to_le_bytes();
+    sm83.dec_sp(1);
+    mc.write(sm83.reg.sp, pc[1])?; // MSB first, as stack is _decreased_
+    sm83.dec_sp(1);
+    mc.write(sm83.reg.sp, pc[0])?;
+
     sm83.set_pc(addr);
     Ok(())
 }
@@ -931,7 +943,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xEC*/ exec_invalid,
     /*0xED*/ exec_invalid,
     /*0xEE*/ exec_invalid,
-    /*0xEF*/ exec_invalid,
+    /*0xEF*/ exec_rst_28,
     /*0xF0*/ exec_ldh_to_a_from_immediate,
     /*0xF1*/ exec_invalid,
     /*0xF2*/ exec_invalid,

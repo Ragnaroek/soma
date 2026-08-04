@@ -1100,6 +1100,48 @@ fn test_ret() -> Result<(), ExecErr> {
 }
 
 #[test]
+fn test_rst() -> Result<(), ExecErr> {
+    let mut mem = [psy::arch::sm83::INSTR_INVALID.op_code; 0x150 + 1];
+    let cases = [(
+        "(rst 0x28)",
+        psy::arch::sm83::INSTR_RST_28.op_code,
+        0x150,
+        0x28,
+    )];
+
+    for (exp, rst_op, pc_start, pc_after) in cases {
+        mem[0x150] = rst_op;
+        let rom = ROM::new_copy_from_slice(&mem);
+        let io = IO::init();
+        let regs = RegBuilder::new().pc(pc_start).sp(0xFFFE).reg();
+        let (sm83, mc) = exec(io, regs, rom)?;
+
+        assert_eq!(
+            sm83.pc(),
+            pc_after,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            pc_after,
+            sm83.pc()
+        );
+        assert_eq!(sm83.reg.sp, 0xFFFC);
+        assert_eq!(
+            mc.read(0xFFFC)?,
+            0x51,
+            "got 0x{:x}, want 0x51",
+            mc.read(0xFFFC)?
+        );
+        assert_eq!(
+            mc.read(0xFFFD)?,
+            0x01,
+            "got 0x{:x}, want 0x01",
+            mc.read(0xFFFD)?
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn test_prefix() -> Result<(), ExecErr> {
     let cases = [
         (
