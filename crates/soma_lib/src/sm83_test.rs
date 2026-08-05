@@ -528,6 +528,57 @@ fn test_cp() -> Result<(), ExecErr> {
 }
 
 #[test]
+fn test_add() -> Result<(), ExecErr> {
+    let cases = [
+        (
+            "(add %a %a), zero result",
+            RegBuilder::new().a(0x00).f_z(0).f_n(1).f_h(1).f_c(1).reg(),
+            &[psy::arch::sm83::INSTR_ADD_A_A.op_code],
+            RegBuilder::new().a(0x00).f_z(1).f_n(0).f_h(0).f_c(0).reg(),
+        ),
+        (
+            "(add %a %a), half-carry but not carry",
+            RegBuilder::new().a(0x08).f_z(0).f_n(1).f_h(0).f_c(1).reg(),
+            &[psy::arch::sm83::INSTR_ADD_A_A.op_code],
+            RegBuilder::new().a(0x10).f_z(0).f_n(0).f_h(1).f_c(0).reg(),
+        ),
+        (
+            "(add %a %a), not half-carry but carry with zero result overflow",
+            RegBuilder::new().a(0x80).f_z(0).f_n(1).f_h(1).f_c(0).reg(),
+            &[psy::arch::sm83::INSTR_ADD_A_A.op_code],
+            RegBuilder::new().a(0x00).f_z(1).f_n(0).f_h(0).f_c(1).reg(),
+        ),
+        (
+            "(add %a %a), not half-carry but carry with non-zero overflow",
+            RegBuilder::new().a(0x90).f_z(1).f_n(1).f_h(1).f_c(0).reg(),
+            &[psy::arch::sm83::INSTR_ADD_A_A.op_code],
+            RegBuilder::new().a(0x20).f_z(0).f_n(0).f_h(0).f_c(1).reg(),
+        ),
+        (
+            "(add %a %a), half-carry and carry",
+            RegBuilder::new().a(0x88).f_z(1).f_n(1).f_h(0).f_c(0).reg(),
+            &[psy::arch::sm83::INSTR_ADD_A_A.op_code],
+            RegBuilder::new().a(0x10).f_z(0).f_n(0).f_h(1).f_c(1).reg(),
+        ),
+    ];
+
+    for (exp, reg_init, mem, reg_after) in cases {
+        let rom = ROM::new_copy_from_slice(mem);
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            1,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            1,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
+#[test]
 fn test_inc() -> Result<(), ExecErr> {
     let cases = [
         (
@@ -1197,9 +1248,9 @@ fn assert_equal_v_regs(l: &Register, r: &Register, exp: &str) {
     assert_eq!(l.l, r.l, "reg l: {}", exp);
     // flag check
     assert_eq!(l.get_flag(Z), r.get_flag(Z), "flag z: {}", exp);
-    assert_eq!(l.get_flag(N), r.get_flag(N), "flag z: {}", exp);
-    assert_eq!(l.get_flag(H), r.get_flag(H), "flag z: {}", exp);
-    assert_eq!(l.get_flag(C), r.get_flag(C), "flag z: {}", exp);
+    assert_eq!(l.get_flag(N), r.get_flag(N), "flag n: {}", exp);
+    assert_eq!(l.get_flag(H), r.get_flag(H), "flag h: {}", exp);
+    assert_eq!(l.get_flag(C), r.get_flag(C), "flag c: {}", exp);
 }
 
 fn exec(io: IO, reg: Register, rom: ROM) -> Result<(SM83, MemoryController), ExecErr> {

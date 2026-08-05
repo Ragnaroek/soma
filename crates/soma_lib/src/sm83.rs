@@ -267,6 +267,8 @@ fn exec_di(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
     Ok(())
 }
 
+// CP
+
 fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let v = mc.read(sm83.pc() + 1)?;
     let (z, carry) = sm83.reg.a.overflowing_sub(v);
@@ -277,6 +279,21 @@ fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), E
     sm83.inc_pc(2);
     Ok(())
 }
+
+// ADD
+fn exec_add_a_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let (a_val, carry) = sm83.reg.a.overflowing_add(sm83.reg.a);
+    let half_carry = (sm83.reg.a & 0x0F) >= 0x8;
+    sm83.reg.a = a_val;
+    sm83.reg.set_flag(Z, (sm83.reg.a == 0) as u8);
+    sm83.reg.set_flag(N, 0);
+    sm83.reg.set_flag(H, half_carry as u8);
+    sm83.reg.set_flag(C, carry as u8);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
+// JP
 
 fn exec_jp(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = mc.read_u16(sm83.pc() + 1)?;
@@ -839,7 +856,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x84*/ exec_invalid,
     /*0x85*/ exec_invalid,
     /*0x86*/ exec_invalid,
-    /*0x87*/ exec_invalid,
+    /*0x87*/ exec_add_a_a,
     /*0x88*/ exec_invalid,
     /*0x89*/ exec_invalid,
     /*0x8A*/ exec_invalid,
