@@ -681,6 +681,17 @@ fn exec_rst_28(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr
     internal_call_to_addr(sm83, mc, 0x28, 1)
 }
 
+fn exec_pop_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let lsb = mc.read(sm83.reg.sp)?;
+    sm83.inc_sp(1);
+    let msb = mc.read(sm83.reg.sp)?;
+    sm83.inc_sp(1);
+
+    let addr = u16::from_le_bytes([lsb, msb]);
+    sm83.reg.set_hl(addr);
+    Ok(())
+}
+
 fn internal_call_to_addr(
     sm83: &mut SM83,
     mc: &mut MemoryController,
@@ -946,7 +957,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xDE*/ exec_invalid,
     /*0xDF*/ exec_invalid,
     /*0xE0*/ exec_ldh_to_immediate_from_a,
-    /*0xE1*/ exec_invalid,
+    /*0xE1*/ exec_pop_hl,
     /*0xE2*/ exec_ldh_to_deref_c_from_a,
     /*0xE3*/ exec_invalid,
     /*0xE4*/ exec_invalid,
