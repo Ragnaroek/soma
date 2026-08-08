@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{collections::HashMap, sync::Arc};
 
-use egui::{Button, Color32, FontDefinitions, Frame, Pos2, Rect, ScrollArea};
+use egui::{Button, Color32, FontDefinitions, Frame, Pos2, Rect, RichText, ScrollArea};
 use psy::arch::sm83::{MAX_INSTRUCTION_BYTE_LENGTH, Sm83Instr};
 
 use libsoma::dmg::DMG;
@@ -18,6 +18,8 @@ const DISPLAY_WIDTH: f32 = 256.0;
 const MARGIN: f32 = 5.0;
 
 const ASM_CODE_ROW_HEIGHT: f32 = 18.0;
+
+const COLOUR_UNCONFIRMED_INSTR: Color32 = Color32::from_rgb(0xFF, 0x98, 0x00);
 
 pub struct FrameBuffer {
     pub buffer: Vec<u8>,
@@ -92,9 +94,15 @@ enum RegValueDisplay {
     Binary,
 }
 
+#[derive(Copy, Clone)]
+struct DisassembleInstr {
+    confirmed: bool,
+    instr: &'static Sm83Instr,
+}
+
 /// Non shared state.
 struct DebuggerState {
-    pub disassemble_cache: HashMap<u16, &'static Sm83Instr>,
+    pub disassemble_cache: HashMap<u16, DisassembleInstr>,
     pub reg_value_display: RegValueDisplay,
     pub asm_view_at: AsmViewAt,
 }
@@ -265,26 +273,34 @@ impl SomaApp {
                             let rom = dmg.mc.rom.as_ref().expect("ROM");
                             let pc = dmg.sm83.pc();
 
-                            let pc_instr =
-                                disassemble_pc(pc, &dmg, &mut debugger.state.disassemble_cache);
-
                             let num_rows = (asm_code_area.height() - 50.0) / ASM_CODE_ROW_HEIGHT;
                             let rows_before_after = ((num_rows - 1.0) / 2.0) as usize;
+
+                            let pc_min =
+                                pc - (rows_before_after * MAX_INSTRUCTION_BYTE_LENGTH) as u16;
+                            let pc_max =
+                                pc + (rows_before_after * MAX_INSTRUCTION_BYTE_LENGTH) as u16;
+
+                            let pc_instr =
+                                disassemble_pc(pc, &dmg, &mut debugger.state.disassemble_cache);
+                            predict_disassemble_around_pc(
+                                pc_min,
+                                pc_max,
+                                &dmg,
+                                &mut debugger.state.disassemble_cache,
+                            );
 
                             let pos = match debugger.state.asm_view_at {
                                 AsmViewAt::PC => pc as usize,
                                 AsmViewAt::FixedPos(pos) => pos,
                             };
 
-                            let instr_before = instr_in_range(
-                                &debugger.state.disassemble_cache,
-                                pc as usize - (rows_before_after * MAX_INSTRUCTION_BYTE_LENGTH),
-                                pc as usize,
-                            );
+                            let instr_before =
+                                instr_in_range(&debugger.state.disassemble_cache, pc_min, pc);
                             let instr_after = instr_in_range(
                                 &debugger.state.disassemble_cache,
-                                pc as usize + pc_instr.len(),
-                                pc as usize + (rows_before_after * MAX_INSTRUCTION_BYTE_LENGTH),
+                                pc + pc_instr.instr.len() as u16,
+                                pc_max,
                             );
 
                             let mut r_instr = Vec::with_capacity(rows_before_after * 2 + 1);
@@ -292,7 +308,7 @@ impl SomaApp {
                                 &instr_before
                                     [instr_before.len().saturating_sub(rows_before_after)..],
                             );
-                            r_instr.push((pc, Some(pc_instr)));
+                            r_instr.push((pc, Some(&pc_instr)));
                             r_instr.extend_from_slice(&instr_after[..rows_before_after]);
 
                             for instr_loc in r_instr {
@@ -516,7 +532,7 @@ fn flag(v: u8, m: u8) -> &'static str {
 
 fn render_instr(
     ui: &mut egui::Ui,
-    may_instr: Option<&'static Sm83Instr>,
+    may_instr: Option<&DisassembleInstr>,
     loc: u16,
     mark_halt: bool,
     rom: &ROM,
@@ -544,39 +560,45 @@ fn render_instr(
     }
 
     let loc_u = loc as usize;
-    let instr_text = if let Some(instr) = may_instr {
-        ui.label(byte_text(loc_u, instr.len(), rom));
+    let (instr_text, confirmed) = if let Some(instr) = may_instr {
+        ui.label(byte_text(loc_u, instr.instr.len(), rom));
 
-        let text = instr.text(Some(&rom[loc_u..(loc_u + instr.len())]));
-        if instr.op_code == psy::arch::sm83::INSTR_INVALID.op_code {
-            format!("{} op_code=0x{:x}", text, rom[loc_u])
+        let text = instr
+            .instr
+            .text(Some(&rom[loc_u..(loc_u + instr.instr.len())]));
+        if instr.instr.op_code == psy::arch::sm83::INSTR_INVALID.op_code {
+            (format!("{} op_code=0x{:x}", text, rom[loc_u]), false)
         } else {
-            text
+            (text, instr.confirmed)
         }
     } else {
         ui.label(byte_text(loc_u, 1, rom));
-        "???".to_string()
+        ("???".to_string(), false)
     };
 
-    ui.label(instr_text);
+    if confirmed {
+        ui.label(instr_text);
+    } else {
+        ui.colored_label(COLOUR_UNCONFIRMED_INSTR, instr_text);
+    }
     ui.end_row();
 }
 
 // Collect all confirmed instructions in the given memory range
 fn instr_in_range(
-    cache: &HashMap<u16, &'static Sm83Instr>,
-    start: usize,
-    end: usize,
-) -> Vec<(u16, Option<&'static Sm83Instr>)> {
-    let mut result = Vec::with_capacity(end - start);
+    cache: &HashMap<u16, DisassembleInstr>,
+    start: u16,
+    end: u16,
+) -> Vec<(u16, Option<&DisassembleInstr>)> {
+    let mut result = Vec::with_capacity((end - start) as usize);
 
     let mut i = start;
     while i < end {
-        let loc = i as u16;
+        let loc = i;
         let may_instr = cache.get(&loc);
         if let Some(instr) = may_instr {
-            result.push((loc, Some(*instr)));
-            i += instr.len();
+            result.push((loc, Some(instr)));
+            i += instr.instr.len() as u16;
         } else {
             result.push((loc, None));
             i += 1;
@@ -601,15 +623,46 @@ fn byte_text(loc: usize, instr_len: usize, rom: &ROM) -> String {
 fn disassemble_pc(
     pc: u16,
     dmg: &DMG<Instant>,
-    cache: &mut HashMap<u16, &'static Sm83Instr>,
-) -> &'static Sm83Instr {
+    cache: &mut HashMap<u16, DisassembleInstr>,
+) -> DisassembleInstr {
     let may_pc_instr = cache.get(&pc);
 
-    if let Some(instr) = may_pc_instr {
-        instr
+    if let Some(instr) = may_pc_instr
+        && instr.confirmed
+    {
+        instr.clone()
     } else {
         let instr = psy::arch::sm83::decode(dmg.mc.read(pc).expect("instruction"));
-        cache.insert(pc, instr);
-        instr
+        let dis = DisassembleInstr {
+            confirmed: true,
+            instr,
+        };
+        cache.insert(pc, dis.clone());
+        dis
+    }
+}
+
+fn predict_disassemble_around_pc(
+    pc_min: u16,
+    pc_max: u16,
+    dmg: &DMG<Instant>,
+    cache: &mut HashMap<u16, DisassembleInstr>,
+) {
+    let mut pc = pc_min;
+    while pc <= pc_max {
+        let may_instr = cache.get(&pc);
+        if let Some(instr) = may_instr {
+            pc += instr.instr.len() as u16;
+        } else {
+            let instr = psy::arch::sm83::decode(dmg.mc.read(pc).expect("instruction"));
+            cache.insert(
+                pc,
+                DisassembleInstr {
+                    confirmed: false,
+                    instr,
+                },
+            );
+            pc += instr.len() as u16;
+        }
     }
 }
