@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{collections::HashMap, sync::Arc};
 
-use egui::{Button, Color32, FontDefinitions, Frame, Pos2, Rect, RichText, ScrollArea};
+use egui::{Button, Color32, FontDefinitions, Frame, Pos2, Rect, RichText, ScrollArea, Stroke};
 use psy::arch::sm83::{MAX_INSTRUCTION_BYTE_LENGTH, Sm83Instr};
 
 use libsoma::dmg::DMG;
@@ -16,10 +16,13 @@ const DISPLAY_HEIGHT: f32 = 256.0;
 const DISPLAY_WIDTH: f32 = 256.0;
 
 const MARGIN: f32 = 5.0;
+const MARGIN_ASM: f32 = 4.0;
 
 const ASM_CODE_ROW_HEIGHT: f32 = 18.0;
+const ASM_OVERVIEW_WIDTH: f32 = 20.0;
 
 const COLOUR_UNCONFIRMED_INSTR: Color32 = Color32::from_rgb(0xFF, 0x98, 0x00);
+const COLOUR_VIEWPORT_OVERVIEW: Color32 = Color32::from_rgba_premultiplied(0x28, 0x28, 0x28, 0x80);
 
 pub struct FrameBuffer {
     pub buffer: Vec<u8>,
@@ -206,7 +209,7 @@ impl SomaApp {
                 egui::StrokeKind::Inside,
             );
             painter.rect_stroke(
-                available_rect.shrink(4.0),
+                available_rect.shrink(MARGIN_ASM),
                 0.0,
                 egui::Stroke::new(1.0f32, egui::Color32::WHITE),
                 egui::StrokeKind::Inside,
@@ -214,8 +217,12 @@ impl SomaApp {
 
             let asm_margin = 2.0;
             let content_area = available_rect.shrink(8.0); //4.0 + 4.0 additional margin for the content
-            let (asm_area, reg_area) = content_area
+            let (asm_full_area, reg_area) = content_area
                 .split_left_right_at_x(content_area.min.x + content_area.width() - REG_PANEL_WIDTH);
+            let (asm_area, asm_overview_area) =
+                asm_full_area.split_left_right_at_x(asm_full_area.max.x - ASM_OVERVIEW_WIDTH);
+            let (asm_overview_area, _) =
+                asm_overview_area.split_left_right_at_x(asm_overview_area.max.x - 3.0);
             let (button_area, asm_code_area) =
                 asm_area.split_top_bottom_at_y(asm_area.min.y + 30.0);
 
@@ -261,6 +268,7 @@ impl SomaApp {
                     });
                 });
 
+            let num_asm_rows = (asm_code_area.height() - 50.0) / ASM_CODE_ROW_HEIGHT;
             egui::Area::new(egui::Id::new("asm_code"))
                 .fixed_pos(asm_code_area.min)
                 .show(ui, |ui| {
@@ -273,8 +281,7 @@ impl SomaApp {
                             let rom = dmg.mc.rom.as_ref().expect("ROM");
                             let pc = dmg.sm83.pc();
 
-                            let num_rows = (asm_code_area.height() - 50.0) / ASM_CODE_ROW_HEIGHT;
-                            let rows_before_after = ((num_rows - 1.0) / 2.0) as usize;
+                            let rows_before_after = ((num_asm_rows - 1.0) / 2.0) as usize;
 
                             let pc_min =
                                 pc - (rows_before_after * MAX_INSTRUCTION_BYTE_LENGTH) as u16;
@@ -289,11 +296,6 @@ impl SomaApp {
                                 &dmg,
                                 &mut debugger.state.disassemble_cache,
                             );
-
-                            let pos = match debugger.state.asm_view_at {
-                                AsmViewAt::PC => pc as usize,
-                                AsmViewAt::FixedPos(pos) => pos,
-                            };
 
                             let instr_before =
                                 instr_in_range(&debugger.state.disassemble_cache, pc_min, pc);
@@ -323,6 +325,48 @@ impl SomaApp {
                                 );
                             }
                         });
+                });
+
+            let viewport_center = {
+                let debugger = self.debugger.as_mut().expect("debugger");
+                let dmg = debugger.emulator.dmg_read_lock();
+                let rom_size = dmg.mc.rom.as_ref().expect("rom").size();
+
+                let viewport_pos_pc = match debugger.state.asm_view_at {
+                    AsmViewAt::PC => dmg.sm83.pc() as usize,
+                    AsmViewAt::FixedPos(pos) => pos,
+                };
+
+                let byte_height = asm_overview_area.height() / rom_size as f32;
+                let viewport_center = byte_height * viewport_pos_pc as f32;
+
+                viewport_center + available_rect.min.y + MARGIN_ASM
+            };
+
+            egui::Area::new(egui::Id::new("asm_overview_bar"))
+                .fixed_pos(asm_overview_area.min)
+                .show(ui, |ui| {
+                    ui.painter()
+                        .rect_filled(asm_overview_area, 0.0, Color32::LIGHT_GRAY);
+                    let rect = Rect::from_min_max(
+                        Pos2::new(
+                            asm_overview_area.min.x,
+                            (viewport_center - 5.0).max(asm_overview_area.min.x),
+                        ),
+                        Pos2::new(
+                            asm_overview_area.max.x,
+                            (viewport_center + 6.0).min(asm_overview_area.max.x),
+                        ),
+                    );
+                    ui.painter()
+                        .rect_filled(rect, 0.0, COLOUR_VIEWPORT_OVERVIEW);
+                    ui.painter().line(
+                        vec![
+                            Pos2::new(asm_overview_area.min.x, viewport_center),
+                            Pos2::new(asm_overview_area.max.x, viewport_center),
+                        ],
+                        Stroke::new(1.0, Color32::BLACK),
+                    );
                 });
 
             let (_, reg_area_inner) = reg_area.split_left_right_at_x(reg_area.min.x + 8.0);
