@@ -351,11 +351,11 @@ impl SomaApp {
                     let rect = Rect::from_min_max(
                         Pos2::new(
                             asm_overview_area.min.x,
-                            (viewport_center - 5.0).max(asm_overview_area.min.x),
+                            (viewport_center - 5.0).max(asm_overview_area.min.y),
                         ),
                         Pos2::new(
                             asm_overview_area.max.x,
-                            (viewport_center + 6.0).min(asm_overview_area.max.x),
+                            (viewport_center + 6.0).min(asm_overview_area.max.y),
                         ),
                     );
                     ui.painter()
