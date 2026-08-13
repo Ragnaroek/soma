@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{collections::HashMap, sync::Arc};
 
-use egui::{Button, Color32, FontDefinitions, Frame, Pos2, Rect, RichText, ScrollArea, Stroke};
+use egui::{Button, Color32, FontDefinitions, Frame, Pos2, Rect, ScrollArea, Stroke};
 use psy::arch::sm83::{MAX_INSTRUCTION_BYTE_LENGTH, Sm83Instr};
 
 use libsoma::dmg::DMG;
@@ -103,11 +103,16 @@ struct DisassembleInstr {
     instr: &'static Sm83Instr,
 }
 
-/// Non shared state.
+struct JumpToDialogState {
+    show: bool,
+    input_text: String,
+}
+
 struct DebuggerState {
     pub disassemble_cache: HashMap<u16, DisassembleInstr>,
     pub reg_value_display: RegValueDisplay,
     pub asm_view_at: AsmViewAt,
+    pub jump_to_dialog_state: JumpToDialogState,
 }
 
 enum AsmViewAt {
@@ -123,6 +128,10 @@ impl DebuggerState {
             disassemble_cache: HashMap::new(),
             reg_value_display: RegValueDisplay::Hex,
             asm_view_at: AsmViewAt::PC,
+            jump_to_dialog_state: JumpToDialogState {
+                show: false,
+                input_text: "".to_string(),
+            },
         }
     }
 }
@@ -158,6 +167,50 @@ impl SomaApp {
         cc.egui_ctx.set_fonts(fonts);
 
         SomaApp { fb, debugger }
+    }
+
+    fn handle_keys(&mut self, ui: &mut egui::Ui) {
+        if ui.input(|i| i.key_pressed(egui::Key::J) && i.modifiers.ctrl) {
+            if let Some(debugger) = &mut self.debugger {
+                debugger.state.jump_to_dialog_state.show = true;
+            }
+        }
+    }
+
+    fn handle_dialogs(&mut self, ui: &mut egui::Ui) {
+        if let Some(debugger) = &mut self.debugger {
+            if debugger.state.jump_to_dialog_state.show {
+                egui::Modal::new(egui::Id::new("my_modal")).show(ui, |ui| {
+                    ui.heading("Enter address to jump to (hex value)");
+
+                    let response = ui
+                        .text_edit_singleline(&mut debugger.state.jump_to_dialog_state.input_text);
+                    response.request_focus();
+
+                    ui.add_space(10.0);
+
+                    ui.horizontal(|ui| {
+                        if ui.button("Jump").clicked() {
+                            let may_addr = usize::from_str_radix(
+                                &debugger.state.jump_to_dialog_state.input_text,
+                                16,
+                            );
+                            if let Ok(addr) = may_addr {
+                                debugger.state.asm_view_at = AsmViewAt::FixedPos(addr);
+                            }
+                            // TODO show an error somewhere if address is invalid
+                            debugger.state.jump_to_dialog_state.input_text.clear();
+                            debugger.state.jump_to_dialog_state.show = false;
+                        }
+
+                        if ui.button("Cancel").clicked() {
+                            debugger.state.jump_to_dialog_state.input_text.clear();
+                            debugger.state.jump_to_dialog_state.show = false;
+                        }
+                    });
+                });
+            }
+        }
     }
 
     fn render_memory_view(&self, ui: &mut egui::Ui, width: f32, height: f32) {
@@ -268,7 +321,7 @@ impl SomaApp {
                     });
                 });
 
-            let num_asm_rows = (asm_code_area.height() - 50.0) / ASM_CODE_ROW_HEIGHT;
+            let num_asm_rows = ((asm_code_area.height() - 50.0) / ASM_CODE_ROW_HEIGHT) as usize;
             egui::Area::new(egui::Id::new("asm_code"))
                 .fixed_pos(asm_code_area.min)
                 .show(ui, |ui| {
@@ -279,46 +332,71 @@ impl SomaApp {
                             let debugger = self.debugger.as_mut().expect("debugger");
                             let dmg = debugger.emulator.dmg_read_lock();
                             let rom = dmg.mc.rom.as_ref().expect("ROM");
-                            let pc = dmg.sm83.pc();
 
-                            let rows_before_after = ((num_asm_rows - 1.0) / 2.0) as usize;
+                            let (viewport_pos, confirmed) = match debugger.state.asm_view_at {
+                                AsmViewAt::PC => (dmg.sm83.pc() as usize, true),
+                                AsmViewAt::FixedPos(pos) => (pos, false),
+                            };
 
-                            let pc_min =
-                                pc - (rows_before_after * MAX_INSTRUCTION_BYTE_LENGTH) as u16;
-                            let pc_max =
-                                pc + (rows_before_after * MAX_INSTRUCTION_BYTE_LENGTH) as u16;
+                            let viewport_min = viewport_pos
+                                .saturating_sub(num_asm_rows * MAX_INSTRUCTION_BYTE_LENGTH);
 
-                            let pc_instr =
-                                disassemble_pc(pc, &dmg, &mut debugger.state.disassemble_cache);
+                            let viewport_max = (viewport_pos
+                                + (num_asm_rows * MAX_INSTRUCTION_BYTE_LENGTH))
+                                .min(rom.size());
+
+                            // disassemble the instruction the view revolves around into the cache
+                            disassemble_pc(
+                                viewport_pos as u16,
+                                &dmg,
+                                &mut debugger.state.disassemble_cache,
+                                confirmed,
+                            );
                             predict_disassemble_around_pc(
-                                pc_min,
-                                pc_max,
+                                viewport_min as u16,
+                                viewport_max as u16,
                                 &dmg,
                                 &mut debugger.state.disassemble_cache,
                             );
 
-                            let instr_before =
-                                instr_in_range(&debugger.state.disassemble_cache, pc_min, pc);
-                            let instr_after = instr_in_range(
+                            // extract enough instructions from the cache
+                            let instrs = instr_in_range(
                                 &debugger.state.disassemble_cache,
-                                pc + pc_instr.instr.len() as u16,
-                                pc_max,
+                                viewport_min as u16,
+                                viewport_max as u16,
                             );
 
-                            let mut r_instr = Vec::with_capacity(rows_before_after * 2 + 1);
-                            r_instr.extend_from_slice(
-                                &instr_before
-                                    [instr_before.len().saturating_sub(rows_before_after)..],
-                            );
-                            r_instr.push((pc, Some(&pc_instr)));
-                            r_instr.extend_from_slice(&instr_after[..rows_before_after]);
+                            let mut viewport_pos_ix = 0;
+                            // find the ix of the centred pos
+                            for i in 0..instrs.len() {
+                                if instrs[i].0 == viewport_pos as u16 {
+                                    viewport_pos_ix = i;
+                                    break;
+                                }
+                            }
 
-                            for instr_loc in r_instr {
-                                let mark_halt = instr_loc.0 == pc;
+                            let max_rows_half = num_asm_rows / 2;
+
+                            let mut start = viewport_pos_ix.saturating_sub(max_rows_half);
+                            let mut end = (viewport_pos_ix + (num_asm_rows / 2)).min(instrs.len());
+
+                            let dist_start = viewport_pos_ix - start;
+                            let dist_end = end - viewport_pos_ix;
+
+                            if dist_start < max_rows_half {
+                                end = rom.size().min(end + (max_rows_half - dist_start));
+                            }
+                            if dist_end < max_rows_half {
+                                start = start.saturating_sub(max_rows_half - dist_end)
+                            }
+
+                            for i in start..end {
+                                let instr = &instrs[i];
+                                let mark_halt = instr.0 == dmg.sm83.pc();
                                 render_instr(
                                     ui,
-                                    instr_loc.1,
-                                    instr_loc.0,
+                                    instr.1,
+                                    instr.0,
                                     mark_halt,
                                     rom,
                                     &debugger.emulator,
@@ -527,6 +605,9 @@ impl SomaApp {
 
 impl eframe::App for SomaApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.handle_keys(ui);
+        self.handle_dialogs(ui);
+
         let screen_size = ui.ctx().content_rect();
 
         egui::Area::new(egui::Id::new("display"))
@@ -668,24 +749,22 @@ fn disassemble_pc(
     pc: u16,
     dmg: &DMG<Instant>,
     cache: &mut HashMap<u16, DisassembleInstr>,
-) -> DisassembleInstr {
+    confirmed: bool,
+) {
     let may_pc_instr = cache.get(&pc);
 
     if let Some(instr) = may_pc_instr
         && instr.confirmed
     {
-        instr.clone()
+        // do nothing and keep the confirmed instruction as is
     } else {
         let instr = psy::arch::sm83::decode(dmg.mc.read(pc).expect("instruction"));
-        let dis = DisassembleInstr {
-            confirmed: true,
-            instr,
-        };
+        let dis = DisassembleInstr { confirmed, instr };
         cache.insert(pc, dis.clone());
-        dis
     }
 }
 
+// pc must be in the pc_min, pc_max range
 fn predict_disassemble_around_pc(
     pc_min: u16,
     pc_max: u16,
@@ -699,14 +778,42 @@ fn predict_disassemble_around_pc(
             pc += instr.instr.len() as u16;
         } else {
             let instr = psy::arch::sm83::decode(dmg.mc.read(pc).expect("instruction"));
-            cache.insert(
-                pc,
-                DisassembleInstr {
-                    confirmed: false,
-                    instr,
-                },
-            );
-            pc += instr.len() as u16;
+
+            // check that we do not "override" a confirmed instruction as this decoded
+            // instruction might be a false positive one
+            let mut overrides_confirmed = (false, 0);
+            for i in 1..instr.len() {
+                let may_instr = cache.get(&(pc + i as u16));
+                if let Some(instr) = may_instr
+                    && instr.confirmed
+                {
+                    overrides_confirmed = (true, pc + i as u16);
+                }
+            }
+
+            if overrides_confirmed.0 {
+                for i in 0..overrides_confirmed.1 {
+                    // add invalid instructions, as something is wrong with the decode state
+                    cache.insert(
+                        pc + i as u16,
+                        DisassembleInstr {
+                            confirmed: false,
+                            instr: &psy::arch::sm83::INSTR_INVALID,
+                        },
+                    );
+                    // resync pc with the confirmed instrution and continue from there
+                    pc = overrides_confirmed.1
+                }
+            } else {
+                cache.insert(
+                    pc,
+                    DisassembleInstr {
+                        confirmed: false,
+                        instr,
+                    },
+                );
+                pc += instr.len() as u16;
+            }
         }
     }
 }
