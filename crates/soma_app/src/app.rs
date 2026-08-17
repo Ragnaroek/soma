@@ -302,6 +302,8 @@ impl SomaApp {
                                 .unwrap()
                                 .emulator
                                 .set_step_control(StepControl::NextStep);
+                            // re-sync with the PC on next step
+                            self.debugger.as_mut().unwrap().state.asm_view_at = AsmViewAt::PC;
                         }
 
                         if ui
