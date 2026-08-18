@@ -1158,7 +1158,7 @@ fn test_pop() -> Result<(), ExecErr> {
         0xFFFC,
         0xFFFE,
         0,
-        0,
+        1,
         0x68,
         0x01,
         RegBuilder::new().hl(0x168).reg(),

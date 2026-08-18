@@ -689,6 +689,7 @@ fn exec_pop_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr
 
     let addr = u16::from_le_bytes([lsb, msb]);
     sm83.reg.set_hl(addr);
+    sm83.inc_pc(1);
     Ok(())
 }
 
