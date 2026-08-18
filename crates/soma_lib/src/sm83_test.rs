@@ -578,6 +578,107 @@ fn test_add() -> Result<(), ExecErr> {
             &[psy::arch::sm83::INSTR_ADD_A_A.op_code],
             RegBuilder::new().a(0x10).f_z(0).f_n(0).f_h(1).f_c(1).reg(),
         ),
+        // add %hl %de
+        (
+            "(add %hl %de), zero result",
+            RegBuilder::new()
+                .hl(0x00)
+                .de(0x00)
+                .f_z(0)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
+            &[psy::arch::sm83::INSTR_ADD_HL_DE.op_code],
+            RegBuilder::new()
+                .hl(0x00)
+                .de(0x00)
+                .f_z(0) // zero flag not set by add %hl!
+                .f_n(0)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
+        ),
+        (
+            "(add %hl %de), half-carry but not carry",
+            RegBuilder::new()
+                .hl(0x0080)
+                .de(0x0080)
+                .f_z(0)
+                .f_n(1)
+                .f_h(0)
+                .f_c(1)
+                .reg(),
+            &[psy::arch::sm83::INSTR_ADD_HL_DE.op_code],
+            RegBuilder::new()
+                .hl(0x0100)
+                .de(0x0080)
+                .f_z(0)
+                .f_n(0)
+                .f_h(1)
+                .f_c(0)
+                .reg(),
+        ),
+        (
+            "(add %hl %de), not half-carry but carry with zero result overflow",
+            RegBuilder::new()
+                .hl(0x8000)
+                .de(0x8000)
+                .f_z(1)
+                .f_n(1)
+                .f_h(1)
+                .f_c(0)
+                .reg(),
+            &[psy::arch::sm83::INSTR_ADD_HL_DE.op_code],
+            RegBuilder::new()
+                .hl(0x00)
+                .de(0x8000)
+                .f_z(1)
+                .f_n(0)
+                .f_h(0)
+                .f_c(1)
+                .reg(),
+        ),
+        (
+            "(add %hl %de), not half-carry but carry with non-zero overflow",
+            RegBuilder::new()
+                .hl(0x9000)
+                .de(0x9000)
+                .f_z(1)
+                .f_n(1)
+                .f_h(1)
+                .f_c(0)
+                .reg(),
+            &[psy::arch::sm83::INSTR_ADD_HL_DE.op_code],
+            RegBuilder::new()
+                .hl(0x2000)
+                .de(0x9000)
+                .f_z(1)
+                .f_n(0)
+                .f_h(0)
+                .f_c(1)
+                .reg(),
+        ),
+        (
+            "(add %hl %de), half-carry and carry",
+            RegBuilder::new()
+                .hl(0x8080)
+                .de(0x8080)
+                .f_z(1)
+                .f_n(1)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
+            &[psy::arch::sm83::INSTR_ADD_HL_DE.op_code],
+            RegBuilder::new()
+                .hl(0x0100)
+                .de(0x8080)
+                .f_z(1)
+                .f_n(0)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
+        ),
     ];
 
     for (exp, reg_init, mem, reg_after) in cases {
