@@ -484,6 +484,12 @@ fn exec_ld_to_c_from_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<()
     Ok(())
 }
 
+fn exec_ld_to_e_from_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    sm83.reg.e = sm83.reg.a;
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_ldh_to_immediate_from_a(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let im = mc.read(sm83.pc() + 1)? as u16;
     let addr = 0xFF00 | im;
@@ -828,7 +834,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x5C*/ exec_invalid,
     /*0x5D*/ exec_invalid,
     /*0x5E*/ exec_invalid,
-    /*0x5F*/ exec_invalid,
+    /*0x5F*/ exec_ld_to_e_from_a,
     /*0x60*/ exec_invalid,
     /*0x61*/ exec_invalid,
     /*0x62*/ exec_invalid,
