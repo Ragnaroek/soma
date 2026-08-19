@@ -1358,6 +1358,46 @@ fn test_pop() -> Result<(), ExecErr> {
 }
 
 #[test]
+fn test_push() -> Result<(), ExecErr> {
+    let cases = [(
+        "(push %de)",
+        [psy::arch::sm83::INSTR_PUSH_DE.op_code],
+        RegBuilder::new().de(0x168).pc(0).sp(0xFFFE).reg(),
+        0xFFFC,
+        1,
+        0x68,
+        0x01,
+        RegBuilder::new().de(0x168).reg(),
+    )];
+
+    for (exp, mem, reg_before, sp_after, pc_after, sp_low, sp_high, reg_after) in cases {
+        let rom = ROM::new_copy_from_slice(&mem);
+        let mc = MemoryController::new(IO::init(), rom);
+        let sp_start = reg_before.sp;
+        let (sm83, mc) = exec_with_mc(mc, reg_before)?;
+
+        assert_eq!(mc.read(sp_start)?, sp_low);
+        assert_eq!(mc.read(sp_start - 1)?, sp_high);
+
+        assert_eq!(
+            sm83.reg.sp, sp_after,
+            "{}, want sp 0x{:x}, got 0x{:x}",
+            exp, sp_after, sm83.reg.sp
+        );
+        assert_eq!(
+            sm83.pc(),
+            pc_after,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            pc_after,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
+#[test]
 fn test_rst() -> Result<(), ExecErr> {
     let mut mem = [psy::arch::sm83::INSTR_INVALID.op_code; 0x150 + 1];
     let cases = [(
