@@ -748,6 +748,7 @@ fn test_inc() -> Result<(), ExecErr> {
             &[psy::arch::sm83::INSTR_INC_C.op_code],
             RegBuilder::new().c(0x10).f_z(0).f_n(0).f_h(1).reg(),
         ),
+        //(inc %de)
         (
             "(inc %de) with zero %de",
             RegBuilder::new().de(0x00).reg(),
@@ -765,6 +766,25 @@ fn test_inc() -> Result<(), ExecErr> {
             RegBuilder::new().de(0xFFFF).reg(),
             &[psy::arch::sm83::INSTR_INC_DE.op_code],
             RegBuilder::new().de(0x0).reg(),
+        ),
+        //(inc %hl)
+        (
+            "(inc %hl) with zero %hl",
+            RegBuilder::new().hl(0x00).reg(),
+            &[psy::arch::sm83::INSTR_INC_HL.op_code],
+            RegBuilder::new().hl(0x01).reg(),
+        ),
+        (
+            "(inc %hl) with non-zero %hl",
+            RegBuilder::new().hl(0x666).reg(),
+            &[psy::arch::sm83::INSTR_INC_HL.op_code],
+            RegBuilder::new().hl(0x667).reg(),
+        ),
+        (
+            "(inc %hl) with overflow",
+            RegBuilder::new().hl(0xFFFF).reg(),
+            &[psy::arch::sm83::INSTR_INC_HL.op_code],
+            RegBuilder::new().hl(0x0).reg(),
         ),
     ];
 
