@@ -373,6 +373,22 @@ fn exec_ld_to_a_from_deref_de(sm83: &mut SM83, mc: &mut MemoryController) -> Res
     Ok(())
 }
 
+fn exec_ld_to_d_from_deref_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let addr = sm83.reg.hl();
+    let v = mc.read(addr)?;
+    sm83.reg.d = v;
+    sm83.inc_pc(1);
+    Ok(())
+}
+
+fn exec_ld_to_e_from_deref_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let addr = sm83.reg.hl();
+    let v = mc.read(addr)?;
+    sm83.reg.e = v;
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_nop(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.inc_pc(1);
     Ok(())
@@ -843,7 +859,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x53*/ exec_invalid,
     /*0x54*/ exec_invalid,
     /*0x55*/ exec_invalid,
-    /*0x56*/ exec_invalid,
+    /*0x56*/ exec_ld_to_d_from_deref_hl,
     /*0x57*/ exec_invalid,
     /*0x58*/ exec_invalid,
     /*0x59*/ exec_invalid,
@@ -851,7 +867,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x5B*/ exec_invalid,
     /*0x5C*/ exec_invalid,
     /*0x5D*/ exec_invalid,
-    /*0x5E*/ exec_invalid,
+    /*0x5E*/ exec_ld_to_e_from_deref_hl,
     /*0x5F*/ exec_ld_to_e_from_a,
     /*0x60*/ exec_invalid,
     /*0x61*/ exec_invalid,
