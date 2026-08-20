@@ -57,23 +57,26 @@ fn test_interrupt_enablement() -> Result<(), ExecErr> {
 
 #[test]
 fn test_jp() -> Result<(), ExecErr> {
-    let cases = [(
-        "(jp 0x150)",
-        [psy::arch::sm83::INSTR_JP.op_code, 0xAA, 0xFF],
-        0xFFAA,
-    )];
+    let cases = [
+        (
+            "(jp 0xFFAA)",
+            [psy::arch::sm83::INSTR_JP.op_code, 0xAA, 0xFF],
+            Register::zero(),
+            RegBuilder::new().pc(0xFFAA).reg(),
+        ),
+        (
+            "(jp %hl)",
+            [psy::arch::sm83::INSTR_JP_HL.op_code, 0x00, 0x00],
+            RegBuilder::new().hl(0x168).reg(),
+            RegBuilder::new().hl(0x168).pc(0x168).reg(),
+        ),
+    ];
 
-    for (exp, mem, pc) in cases {
+    for (exp, mem, reg_before, reg_after) in cases {
         let rom = ROM::new_copy_from_slice(&mem);
-        let (sm83, _) = exec(IO::init(), Register::zero(), rom)?;
-        assert_eq!(
-            sm83.pc(),
-            pc,
-            "{}, want pc 0x{:x}, got 0x{:x}",
-            exp,
-            pc,
-            sm83.pc()
-        );
+        let (sm83, _) = exec(IO::init(), reg_before, rom)?;
+
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
     }
     Ok(())
 }

@@ -305,13 +305,18 @@ fn exec_add_hl_de(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), Exe
 }
 
 // JP
-
 fn exec_jp(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = mc.read_u16(sm83.pc() + 1)?;
     sm83.set_pc(addr);
     Ok(())
 }
 
+fn exec_jp_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    sm83.set_pc(sm83.reg.hl());
+    Ok(())
+}
+
+// JR
 fn exec_jr(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let rel = mc.read(sm83.pc() + 1)? as i8;
     sm83.inc_pc(2); // relative jump is computed after the instruction
@@ -1026,7 +1031,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xE6*/ exec_and_immediate,
     /*0xE7*/ exec_invalid,
     /*0xE8*/ exec_invalid,
-    /*0xE9*/ exec_invalid,
+    /*0xE9*/ exec_jp_hl,
     /*0xEA*/ exec_ld_to_deref_label_from_a,
     /*0xEB*/ exec_invalid,
     /*0xEC*/ exec_invalid,
