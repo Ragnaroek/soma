@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{collections::HashMap, sync::Arc};
 
-use egui::{Button, Color32, FontDefinitions, Frame, Pos2, Rect, ScrollArea, Stroke};
+use egui::{Button, Color32, FontDefinitions, Frame, Grid, Pos2, Rect, ScrollArea, Stroke};
 use psy::arch::sm83::{MAX_INSTRUCTION_BYTE_LENGTH, Sm83Instr};
 
 use libsoma::dmg::DMG;
@@ -11,6 +11,7 @@ use libsoma::sm83;
 use std::time::Instant;
 
 const REG_PANEL_WIDTH: f32 = 210.0;
+const STACK_PANEL_WIDTH: f32 = 210.0;
 
 const DISPLAY_HEIGHT: f32 = 256.0;
 const DISPLAY_WIDTH: f32 = 256.0;
@@ -270,8 +271,11 @@ impl SomaApp {
 
             let asm_margin = 2.0;
             let content_area = available_rect.shrink(8.0); //4.0 + 4.0 additional margin for the content
-            let (asm_full_area, reg_area) = content_area
-                .split_left_right_at_x(content_area.min.x + content_area.width() - REG_PANEL_WIDTH);
+            let (asm_full_area, reg_and_stack_area) = content_area.split_left_right_at_x(
+                content_area.min.x + content_area.width() - REG_PANEL_WIDTH - STACK_PANEL_WIDTH,
+            );
+            let (reg_area, stack_area) = reg_and_stack_area
+                .split_left_right_at_x(reg_and_stack_area.min.x + REG_PANEL_WIDTH);
             let (asm_area, asm_overview_area) =
                 asm_full_area.split_left_right_at_x(asm_full_area.max.x - ASM_OVERVIEW_WIDTH);
             let (asm_overview_area, _) =
@@ -569,6 +573,41 @@ impl SomaApp {
                                     ui.label("c");
                                     ui.label(flag(dmg.sm83.reg.f, sm83::C));
                                     ui.end_row();
+                                });
+                            });
+                        });
+                });
+
+            let (_, stack_area_inner) = stack_area.split_left_right_at_x(stack_area.min.x + 8.0);
+            egui::Area::new(egui::Id::new("stack"))
+                .fixed_pos(stack_area.min)
+                .show(ui, |ui| {
+                    // left border
+                    let painter = ui.painter();
+                    let left_border_rect = egui::Rect::from_min_max(
+                        egui::pos2(stack_area.min.x, stack_area.min.y + 2.0 - asm_margin),
+                        egui::pos2(stack_area.min.x + 4.0, stack_area.max.y - asm_margin),
+                    );
+
+                    painter.rect_filled(left_border_rect, 0.0, egui::Color32::WHITE);
+
+                    egui::Area::new(egui::Id::new("stack_inner"))
+                        .fixed_pos(stack_area_inner.min)
+                        .show(ui, |ui| {
+                            ScrollArea::vertical().show(ui, |ui| {
+                                Grid::new("stack_grid").show(ui, |ui| {
+                                    let debugger = self.debugger.as_ref().unwrap();
+                                    let dmg = debugger.emulator.dmg_read_lock();
+                                    let sp = dmg.sm83.reg.sp;
+
+                                    for addr in sp..(sp.saturating_add(100)) {
+                                        ui.label(format!("0x{:X}", addr));
+                                        ui.label(format!(
+                                            "{:X}",
+                                            dmg.mc.read(addr).expect("mem read")
+                                        ));
+                                        ui.end_row();
+                                    }
                                 });
                             });
                         });

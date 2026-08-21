@@ -70,7 +70,7 @@ fn main() -> eframe::Result {
     let (debugger, dim) = if args.debugger {
         (
             Some(Debugger::new(shared_emulation.clone())),
-            [1000.0, 850.0],
+            [1200.0, 850.0],
         )
     } else {
         (None, [256.0 + 20.0, 256.0 + 20.0])
