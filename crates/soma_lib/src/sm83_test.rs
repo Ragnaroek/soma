@@ -751,6 +751,25 @@ fn test_inc() -> Result<(), ExecErr> {
             &[psy::arch::sm83::INSTR_INC_C.op_code],
             RegBuilder::new().c(0x10).f_z(0).f_n(0).f_h(1).reg(),
         ),
+        //(inc %l)
+        (
+            "(inc %l), zero result",
+            RegBuilder::new().l(0xFF).f_z(0).f_n(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_INC_L.op_code],
+            RegBuilder::new().l(0x00).f_z(1).f_n(0).f_h(1).reg(),
+        ),
+        (
+            "(inc %l), non-zero result",
+            RegBuilder::new().l(0x00).f_z(1).f_n(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_INC_L.op_code],
+            RegBuilder::new().l(0x01).f_z(0).f_n(0).f_h(0).reg(),
+        ),
+        (
+            "(inc %l), half-carry",
+            RegBuilder::new().l(0x0F).f_z(1).f_n(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_INC_L.op_code],
+            RegBuilder::new().l(0x10).f_z(0).f_n(0).f_h(1).reg(),
+        ),
         //(inc %de)
         (
             "(inc %de) with zero %de",

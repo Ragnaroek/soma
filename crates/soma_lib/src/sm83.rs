@@ -585,6 +585,18 @@ fn exec_inc_c(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> 
     sm83.inc_pc(1);
     Ok(())
 }
+
+fn exec_inc_l(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
+    let (l_inc, _) = sm83.reg.l.overflowing_add(1);
+    let half_carry = half_carry_inc(sm83.reg.l);
+    sm83.reg.l = l_inc;
+    sm83.reg.set_flag(Z, (l_inc == 0) as u8);
+    sm83.reg.set_flag(N, 0);
+    sm83.reg.set_flag(H, half_carry);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_inc_de(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
     let de = sm83.reg.de();
     let (de_inc, _) = de.overflowing_add(1);
@@ -842,7 +854,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x29*/ exec_invalid,
     /*0x2A*/ exec_ld_to_a_from_deref_hl_inc,
     /*0x2B*/ exec_invalid,
-    /*0x2C*/ exec_invalid,
+    /*0x2C*/ exec_inc_l,
     /*0x2D*/ exec_invalid,
     /*0x2E*/ exec_invalid,
     /*0x2F*/ exec_cpl,
