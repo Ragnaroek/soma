@@ -761,10 +761,10 @@ fn exec_pop_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr
 // PUSH
 fn exec_push_de(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = sm83.reg.de().to_le_bytes();
-    mc.write(sm83.reg.sp, addr[0])?;
     sm83.dec_sp(1);
     mc.write(sm83.reg.sp, addr[1])?;
     sm83.dec_sp(1);
+    mc.write(sm83.reg.sp, addr[0])?;
 
     sm83.inc_pc(1);
     Ok(())
