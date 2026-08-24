@@ -809,6 +809,15 @@ fn exec_prefix_swap_a(sm83: &mut SM83) -> Result<(), ExecErr> {
     Ok(())
 }
 
+fn exec_prefix_rst_0_a(sm83: &mut SM83) -> Result<(), ExecErr> {
+    sm83.reg.a = rst_x(sm83.reg.a, 0);
+    Ok(())
+}
+
+fn rst_x(v: u8, x: u8) -> u8 {
+    v & !(1 << x)
+}
+
 pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x00*/ exec_nop,
     /*0x01*/ exec_ld_to_bc_from_immediate,
@@ -1204,7 +1213,7 @@ pub static EXEC_PREFIX_TABLE: [Sm83PrefixExec; psy::arch::sm83::SM83_NUM_PREFIX_
     /*0x84*/ exec_prefix_invalid,
     /*0x85*/ exec_prefix_invalid,
     /*0x86*/ exec_prefix_invalid,
-    /*0x87*/ exec_prefix_invalid,
+    /*0x87*/ exec_prefix_rst_0_a,
     /*0x88*/ exec_prefix_invalid,
     /*0x89*/ exec_prefix_invalid,
     /*0x8A*/ exec_prefix_invalid,

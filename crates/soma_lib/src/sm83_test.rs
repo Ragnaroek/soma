@@ -1461,7 +1461,7 @@ fn test_rst() -> Result<(), ExecErr> {
 }
 
 #[test]
-fn test_prefix() -> Result<(), ExecErr> {
+fn test_prefix_swap() -> Result<(), ExecErr> {
     let cases = [
         (
             "(swap %a) zero",
@@ -1482,6 +1482,34 @@ fn test_prefix() -> Result<(), ExecErr> {
             RegBuilder::new().a(0xAF).f_z(0).f_n(0).f_h(0).f_c(0).reg(),
         ),
     ];
+
+    for (exp, reg_init, mem, reg_after) in cases {
+        let rom = ROM::new_copy_from_slice(mem);
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            2,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            2,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+    }
+    Ok(())
+}
+
+#[test]
+fn test_prefix_reset() -> Result<(), ExecErr> {
+    let cases = [(
+        "(res 0 %a)",
+        RegBuilder::new().a(0b11111111).reg(),
+        &[
+            psy::arch::sm83::INSTR_PREFIX.op_code,
+            psy::arch::sm83::INSTR_PREFIX_RST_0_A.op_code,
+        ],
+        RegBuilder::new().a(0b11111110).reg(),
+    )];
 
     for (exp, reg_init, mem, reg_after) in cases {
         let rom = ROM::new_copy_from_slice(mem);
