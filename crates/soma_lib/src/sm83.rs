@@ -63,6 +63,10 @@ impl Register {
         }
     }
 
+    pub fn af(&self) -> u16 {
+        ((self.a as u16) << 8) | (self.f as u16)
+    }
+
     pub fn bc(&self) -> u16 {
         ((self.b as u16) << 8) | (self.c as u16)
     }
@@ -73,6 +77,11 @@ impl Register {
 
     pub fn hl(&self) -> u16 {
         ((self.h as u16) << 8) | (self.l as u16)
+    }
+
+    pub fn set_af(&mut self, v: u16) {
+        self.a = (v >> 8) as u8;
+        self.f = v as u8;
     }
 
     pub fn set_bc(&mut self, v: u16) {
@@ -178,6 +187,11 @@ impl RegBuilder {
 
     pub fn l(mut self, v: u8) -> RegBuilder {
         self.reg.l = v;
+        self
+    }
+
+    pub fn af(mut self, v: u16) -> RegBuilder {
+        self.reg.set_af(v);
         self
     }
 
@@ -784,6 +798,17 @@ fn exec_pop_de(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr
 }
 
 // PUSH
+fn exec_push_af(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let addr = sm83.reg.af().to_le_bytes();
+    sm83.dec_sp(1);
+    mc.write(sm83.reg.sp, addr[1])?;
+    sm83.dec_sp(1);
+    mc.write(sm83.reg.sp, addr[0])?;
+
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_push_de(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = sm83.reg.de().to_le_bytes();
     sm83.dec_sp(1);
@@ -1100,7 +1125,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xF2*/ exec_invalid,
     /*0xF3*/ exec_di,
     /*0xF4*/ exec_invalid,
-    /*0xF5*/ exec_invalid,
+    /*0xF5*/ exec_push_af,
     /*0xF6*/ exec_invalid,
     /*0xF7*/ exec_invalid,
     /*0xF8*/ exec_invalid,

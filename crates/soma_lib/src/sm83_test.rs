@@ -1414,6 +1414,16 @@ fn test_pop() -> Result<(), ExecErr> {
 fn test_push() -> Result<(), ExecErr> {
     let cases = [
         (
+            "(push %af)",
+            [psy::arch::sm83::INSTR_PUSH_AF.op_code],
+            RegBuilder::new().af(0x43FF).pc(0).sp(0xFFFE).reg(),
+            0xFFFC,
+            1,
+            0xFF,
+            0x43,
+            RegBuilder::new().af(0x43FF).reg(),
+        ),
+        (
             "(push %de)",
             [psy::arch::sm83::INSTR_PUSH_DE.op_code],
             RegBuilder::new().de(0x168).pc(0).sp(0xFFFE).reg(),
