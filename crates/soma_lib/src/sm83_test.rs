@@ -1390,16 +1390,28 @@ fn test_pop() -> Result<(), ExecErr> {
 
 #[test]
 fn test_push() -> Result<(), ExecErr> {
-    let cases = [(
-        "(push %de)",
-        [psy::arch::sm83::INSTR_PUSH_DE.op_code],
-        RegBuilder::new().de(0x168).pc(0).sp(0xFFFE).reg(),
-        0xFFFC,
-        1,
-        0x68,
-        0x01,
-        RegBuilder::new().de(0x168).reg(),
-    )];
+    let cases = [
+        (
+            "(push %de)",
+            [psy::arch::sm83::INSTR_PUSH_DE.op_code],
+            RegBuilder::new().de(0x168).pc(0).sp(0xFFFE).reg(),
+            0xFFFC,
+            1,
+            0x68,
+            0x01,
+            RegBuilder::new().de(0x168).reg(),
+        ),
+        (
+            "(push %hl)",
+            [psy::arch::sm83::INSTR_PUSH_HL.op_code],
+            RegBuilder::new().hl(0x168).pc(0).sp(0xFFFE).reg(),
+            0xFFFC,
+            1,
+            0x68,
+            0x01,
+            RegBuilder::new().hl(0x168).reg(),
+        ),
+    ];
 
     for (exp, mem, reg_before, sp_after, pc_after, sp_low, sp_high, reg_after) in cases {
         let rom = ROM::new_copy_from_slice(&mem);
