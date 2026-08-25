@@ -197,7 +197,7 @@ fn test_jr() -> Result<(), ExecErr> {
 
 #[test]
 fn test_ld() -> Result<(), ExecErr> {
-    let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 23] = [
+    let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 24] = [
         (
             "(ld %a 1)",
             IO::init(),
@@ -428,6 +428,15 @@ fn test_ld() -> Result<(), ExecErr> {
             &[psy::arch::sm83::INSTR_LD_TO_A_FROM_C.op_code],
             1,
             RegBuilder::new().a(0x66).c(0x66).reg(),
+            &[],
+        ),
+        (
+            "(ld %a %h)",
+            IO::init(),
+            RegBuilder::new().a(0x01).h(0xFF).reg(),
+            &[psy::arch::sm83::INSTR_LD_TO_A_FROM_H.op_code],
+            1,
+            RegBuilder::new().a(0xFF).h(0xFF).reg(),
             &[],
         ),
         (
