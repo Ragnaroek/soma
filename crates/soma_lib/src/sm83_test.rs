@@ -493,14 +493,7 @@ fn test_ld() -> Result<(), ExecErr> {
         );
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
 
-        for check in mem_checks {
-            let mem_value = mc.read(check.0)?;
-            assert_eq!(
-                mem_value, check.1,
-                "expected memory location 0x{:x} to have value 0x{:x}. But was 0x{:x}",
-                check.0, check.1, mem_value
-            );
-        }
+        check_mem(mem_checks, &mc)?;
     }
     Ok(())
 }
@@ -1576,19 +1569,34 @@ fn test_prefix_swap() -> Result<(), ExecErr> {
 
 #[test]
 fn test_prefix_reset() -> Result<(), ExecErr> {
-    let cases = [(
-        "(res 0 %a)",
-        RegBuilder::new().a(0b11111111).reg(),
-        &[
-            psy::arch::sm83::INSTR_PREFIX.op_code,
-            psy::arch::sm83::INSTR_PREFIX_RST_0_A.op_code,
-        ],
-        RegBuilder::new().a(0b11111110).reg(),
-    )];
+    let cases: [(&str, IO, Register, &[u8], Register, &[(u16, u8)]); 2] = [
+        (
+            "(res 0 %a)",
+            IO::init(),
+            RegBuilder::new().a(0b11111111).reg(),
+            &[
+                psy::arch::sm83::INSTR_PREFIX.op_code,
+                psy::arch::sm83::INSTR_PREFIX_RST_0_A.op_code,
+            ],
+            RegBuilder::new().a(0b11111110).reg(),
+            &[],
+        ),
+        (
+            "(res 7 (%hl))",
+            IO::init_with_value(0xFF44, 0b11111111)?,
+            RegBuilder::new().hl(0xFF44).reg(),
+            &[
+                psy::arch::sm83::INSTR_PREFIX.op_code,
+                psy::arch::sm83::INSTR_PREFIX_RST_7_DEREF_HL.op_code,
+            ],
+            RegBuilder::new().hl(0xFF44).reg(),
+            &[(0xFF44, 0b01111111)],
+        ),
+    ];
 
-    for (exp, reg_init, mem, reg_after) in cases {
+    for (exp, io, reg_init, mem, reg_after, mem_checks) in cases {
         let rom = ROM::new_copy_from_slice(mem);
-        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        let (sm83, mc) = exec(io, reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
             2,
@@ -1598,11 +1606,25 @@ fn test_prefix_reset() -> Result<(), ExecErr> {
             sm83.pc()
         );
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+
+        check_mem(mem_checks, &mc)?
     }
     Ok(())
 }
 
 // helper
+
+fn check_mem(mem_checks: &[(u16, u8)], mc: &MemoryController) -> Result<(), ExecErr> {
+    for check in mem_checks {
+        let mem_value = mc.read(check.0)?;
+        assert_eq!(
+            mem_value, check.1,
+            "expected memory location 0x{:x} to have value 0x{:x}. But was 0x{:x}",
+            check.0, check.1, mem_value
+        );
+    }
+    Ok(())
+}
 
 /// conly compares the value register a to l, without pc and sp.
 fn assert_equal_v_regs(l: &Register, r: &Register, exp: &str) {

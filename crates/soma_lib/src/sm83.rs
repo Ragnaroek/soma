@@ -261,7 +261,7 @@ impl SM83 {
 }
 
 type Sm83Exec = fn(&mut SM83, &mut MemoryController) -> Result<(), ExecErr>;
-type Sm83PrefixExec = fn(&mut SM83) -> Result<(), ExecErr>;
+type Sm83PrefixExec = fn(&mut SM83, &mut MemoryController) -> Result<(), ExecErr>;
 
 fn exec_invalid(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let pc = sm83.pc();
@@ -869,16 +869,16 @@ fn internal_call_to_addr(
 
 fn exec_prefix(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let op_code = mc.read(sm83.pc() + 1)?;
-    EXEC_PREFIX_TABLE[op_code as usize](sm83)?;
+    EXEC_PREFIX_TABLE[op_code as usize](sm83, mc)?;
     sm83.inc_pc(2);
     Ok(())
 }
 
-fn exec_prefix_invalid(_sm83: &mut SM83) -> Result<(), ExecErr> {
+fn exec_prefix_invalid(_sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     Err(ExecErr::GeneralError("invalid prefix instruction"))
 }
 
-fn exec_prefix_swap_a(sm83: &mut SM83) -> Result<(), ExecErr> {
+fn exec_prefix_swap_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     let h = sm83.reg.a & 0xF0;
     let l = sm83.reg.a & 0x0F;
     sm83.reg.a = (l << 4) | (h >> 4);
@@ -890,8 +890,15 @@ fn exec_prefix_swap_a(sm83: &mut SM83) -> Result<(), ExecErr> {
     Ok(())
 }
 
-fn exec_prefix_rst_0_a(sm83: &mut SM83) -> Result<(), ExecErr> {
+fn exec_prefix_rst_0_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.reg.a = rst_x(sm83.reg.a, 0);
+    Ok(())
+}
+
+fn exec_prefix_rst_7_deref_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let addr = sm83.reg.hl();
+    let v = mc.read(addr)?;
+    mc.write(addr, rst_x(v, 7))?;
     Ok(())
 }
 
@@ -1349,7 +1356,7 @@ pub static EXEC_PREFIX_TABLE: [Sm83PrefixExec; psy::arch::sm83::SM83_NUM_PREFIX_
     /*0xBB*/ exec_prefix_invalid,
     /*0xBC*/ exec_prefix_invalid,
     /*0xBD*/ exec_prefix_invalid,
-    /*0xBE*/ exec_prefix_invalid,
+    /*0xBE*/ exec_prefix_rst_7_deref_hl,
     /*0xBF*/ exec_prefix_invalid,
     /*0xC0*/ exec_prefix_invalid,
     /*0xC1*/ exec_prefix_invalid,
