@@ -1424,6 +1424,16 @@ fn test_push() -> Result<(), ExecErr> {
             RegBuilder::new().af(0x43FF).reg(),
         ),
         (
+            "(push %bc)",
+            [psy::arch::sm83::INSTR_PUSH_BC.op_code],
+            RegBuilder::new().bc(0x1188).pc(0).sp(0xFFFE).reg(),
+            0xFFFC,
+            1,
+            0x88,
+            0x11,
+            RegBuilder::new().bc(0x1188).reg(),
+        ),
+        (
             "(push %de)",
             [psy::arch::sm83::INSTR_PUSH_DE.op_code],
             RegBuilder::new().de(0x168).pc(0).sp(0xFFFE).reg(),
