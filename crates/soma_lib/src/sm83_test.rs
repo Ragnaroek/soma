@@ -83,7 +83,7 @@ fn test_jp() -> Result<(), ExecErr> {
 
 #[test]
 fn test_jr() -> Result<(), ExecErr> {
-    let cases: [(&str, Register, &[u8], u16); 7] = [
+    let cases: [(&str, Register, &[u8], u16); 9] = [
         (
             "(jr 0xFE)", //self-jump
             RegBuilder::new().pc(1).reg(),
@@ -145,7 +145,7 @@ fn test_jr() -> Result<(), ExecErr> {
             9,
         ),
         (
-            "(jr #nz 0xF8) if #z not zero",
+            "(jr #nz 0xF8) if #z zero",
             RegBuilder::new().pc(8).f_z(1).reg(),
             &[
                 0x0,
@@ -162,7 +162,7 @@ fn test_jr() -> Result<(), ExecErr> {
             10, // don't jump, as z is zero
         ),
         (
-            "(jr #nz 0xF8) if #z is zero",
+            "(jr #nz 0xF8) if #z not zero",
             RegBuilder::new().pc(8).f_z(0).reg(),
             &[
                 0x0,
@@ -177,6 +177,18 @@ fn test_jr() -> Result<(), ExecErr> {
                 0xF8, // -7 jump
             ],
             2, // jump back to pc=2, as z is not zero
+        ),
+        (
+            "(jr #z 0x6) if #z zero",
+            RegBuilder::new().pc(0).f_z(1).reg(),
+            &[psy::arch::sm83::INSTR_JR_IF_Z.op_code, 0x6],
+            8, // jump 6 instructions forward
+        ),
+        (
+            "(jr #z 0x06) if #z is not zero",
+            RegBuilder::new().pc(0).f_z(0).reg(),
+            &[psy::arch::sm83::INSTR_JR_IF_Z.op_code, 0x06, 0x0],
+            2, // don't jump and go to next instruction
         ),
     ];
 
