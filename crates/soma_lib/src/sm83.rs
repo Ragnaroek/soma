@@ -330,6 +330,14 @@ fn exec_jp_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr>
     Ok(())
 }
 
+fn exec_jp_if_z(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let addr = mc.read_u16(sm83.pc() + 1)?;
+    if (sm83.reg.f & Z) != 0 {
+        sm83.set_pc(addr);
+    }
+    Ok(())
+}
+
 // JR
 fn exec_jr(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let rel = mc.read(sm83.pc() + 1)? as i8;
@@ -1133,7 +1141,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xC7*/ exec_invalid,
     /*0xC8*/ exec_invalid,
     /*0xC9*/ exec_ret,
-    /*0xCA*/ exec_invalid,
+    /*0xCA*/ exec_jp_if_z,
     /*0xCB*/ exec_prefix,
     /*0xCC*/ exec_invalid,
     /*0xCD*/ exec_call,

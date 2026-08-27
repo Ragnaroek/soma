@@ -70,6 +70,18 @@ fn test_jp() -> Result<(), ExecErr> {
             RegBuilder::new().hl(0x168).reg(),
             RegBuilder::new().hl(0x168).pc(0x168).reg(),
         ),
+        (
+            "(jp #z 0x666) if #z is zero",
+            [psy::arch::sm83::INSTR_JP_IF_Z.op_code, 0x66, 0x06],
+            RegBuilder::new().f_z(1).reg(),
+            RegBuilder::new().f_z(1).pc(0x666).reg(),
+        ),
+        (
+            "(jp #z 0x666) if #z is not zero",
+            [psy::arch::sm83::INSTR_JP_IF_Z.op_code, 0x66, 0x06],
+            RegBuilder::new().f_z(0).reg(),
+            RegBuilder::new().f_z(0).pc(0x2).reg(),
+        ),
     ];
 
     for (exp, mem, reg_before, reg_after) in cases {
