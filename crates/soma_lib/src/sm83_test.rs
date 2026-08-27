@@ -1368,15 +1368,26 @@ fn test_ret() -> Result<(), ExecErr> {
 fn test_pop() -> Result<(), ExecErr> {
     let cases = [
         (
-            "(pop %hl)",
-            [psy::arch::sm83::INSTR_POP_HL.op_code],
+            "(pop %af)",
+            [psy::arch::sm83::INSTR_POP_AF.op_code],
             0xFFFC,
             0xFFFE,
             0,
             1,
-            0x68,
-            0x01,
-            RegBuilder::new().hl(0x168).reg(),
+            0xFF,
+            0xAA,
+            RegBuilder::new().af(0xAAFF).reg(),
+        ),
+        (
+            "(pop %bc)",
+            [psy::arch::sm83::INSTR_POP_BC.op_code],
+            0xFFFC,
+            0xFFFE,
+            0,
+            1,
+            0x23,
+            0x76,
+            RegBuilder::new().bc(0x7623).reg(),
         ),
         (
             "(pop %de)",
@@ -1388,6 +1399,17 @@ fn test_pop() -> Result<(), ExecErr> {
             0x68,
             0x01,
             RegBuilder::new().de(0x168).reg(),
+        ),
+        (
+            "(pop %hl)",
+            [psy::arch::sm83::INSTR_POP_HL.op_code],
+            0xFFFC,
+            0xFFFE,
+            0,
+            1,
+            0x68,
+            0x01,
+            RegBuilder::new().hl(0x168).reg(),
         ),
     ];
 

@@ -782,14 +782,26 @@ fn exec_rst_28(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr
 }
 
 // POP
-fn exec_pop_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+fn exec_pop_af(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let lsb = mc.read(sm83.reg.sp)?;
     sm83.inc_sp(1);
     let msb = mc.read(sm83.reg.sp)?;
     sm83.inc_sp(1);
 
     let addr = u16::from_le_bytes([lsb, msb]);
-    sm83.reg.set_hl(addr);
+    sm83.reg.set_af(addr);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
+fn exec_pop_bc(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let lsb = mc.read(sm83.reg.sp)?;
+    sm83.inc_sp(1);
+    let msb = mc.read(sm83.reg.sp)?;
+    sm83.inc_sp(1);
+
+    let addr = u16::from_le_bytes([lsb, msb]);
+    sm83.reg.set_bc(addr);
     sm83.inc_pc(1);
     Ok(())
 }
@@ -802,6 +814,18 @@ fn exec_pop_de(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr
 
     let addr = u16::from_le_bytes([lsb, msb]);
     sm83.reg.set_de(addr);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
+fn exec_pop_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let lsb = mc.read(sm83.reg.sp)?;
+    sm83.inc_sp(1);
+    let msb = mc.read(sm83.reg.sp)?;
+    sm83.inc_sp(1);
+
+    let addr = u16::from_le_bytes([lsb, msb]);
+    sm83.reg.set_hl(addr);
     sm83.inc_pc(1);
     Ok(())
 }
@@ -1100,7 +1124,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xBE*/ exec_invalid,
     /*0xBF*/ exec_invalid,
     /*0xC0*/ exec_invalid,
-    /*0xC1*/ exec_invalid,
+    /*0xC1*/ exec_pop_bc,
     /*0xC2*/ exec_invalid,
     /*0xC3*/ exec_jp,
     /*0xC4*/ exec_invalid,
@@ -1148,7 +1172,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xEE*/ exec_invalid,
     /*0xEF*/ exec_rst_28,
     /*0xF0*/ exec_ldh_to_a_from_immediate,
-    /*0xF1*/ exec_invalid,
+    /*0xF1*/ exec_pop_af,
     /*0xF2*/ exec_invalid,
     /*0xF3*/ exec_di,
     /*0xF4*/ exec_invalid,
