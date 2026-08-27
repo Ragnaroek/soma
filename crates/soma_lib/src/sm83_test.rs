@@ -1061,7 +1061,7 @@ fn test_or() -> Result<(), ExecErr> {
 
 #[test]
 fn test_and() -> Result<(), ExecErr> {
-    let cases: [(&str, Register, &[u8], Register, u16); 4] = [
+    let cases: [(&str, Register, &[u8], Register, u16); 6] = [
         (
             "(and %a 0x43) zero result",
             RegBuilder::new().a(0x00).f_z(0).f_n(1).f_h(0).f_c(1).reg(),
@@ -1128,6 +1128,20 @@ fn test_and() -> Result<(), ExecErr> {
                 .f_h(1)
                 .f_c(0)
                 .reg(),
+            1,
+        ),
+        (
+            "(and %a %a) zero result",
+            RegBuilder::new().a(0x00).f_z(0).f_n(1).f_h(0).f_c(1).reg(),
+            &[psy::arch::sm83::INSTR_AND_A_A.op_code],
+            RegBuilder::new().a(0x00).f_z(1).f_n(0).f_h(1).f_c(0).reg(),
+            1,
+        ),
+        (
+            "(and %a %a) non-zero result",
+            RegBuilder::new().a(0x66).f_z(1).f_n(1).f_h(0).f_c(1).reg(),
+            &[psy::arch::sm83::INSTR_AND_A_A.op_code],
+            RegBuilder::new().a(0x66).f_z(0).f_n(0).f_h(1).f_c(0).reg(),
             1,
         ),
     ];
