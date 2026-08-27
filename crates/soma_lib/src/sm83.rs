@@ -334,6 +334,8 @@ fn exec_jp_if_z(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecEr
     let addr = mc.read_u16(sm83.pc() + 1)?;
     if (sm83.reg.f & Z) != 0 {
         sm83.set_pc(addr);
+    } else {
+        sm83.inc_pc(3);
     }
     Ok(())
 }

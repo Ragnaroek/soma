@@ -80,7 +80,7 @@ fn test_jp() -> Result<(), ExecErr> {
             "(jp #z 0x666) if #z is not zero",
             [psy::arch::sm83::INSTR_JP_IF_Z.op_code, 0x66, 0x06],
             RegBuilder::new().f_z(0).reg(),
-            RegBuilder::new().f_z(0).pc(0x2).reg(),
+            RegBuilder::new().f_z(0).pc(0x3).reg(),
         ),
     ];
 
@@ -89,6 +89,7 @@ fn test_jp() -> Result<(), ExecErr> {
         let (sm83, _) = exec(IO::init(), reg_before, rom)?;
 
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+        assert_eq!(sm83.reg.pc, reg_after.pc);
     }
     Ok(())
 }
