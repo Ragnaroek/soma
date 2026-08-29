@@ -695,6 +695,18 @@ fn exec_dec_c(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr
     Ok(())
 }
 
+fn exec_dec_deref_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let addr = sm83.reg.hl();
+    let v = mc.read(addr)?;
+    let (v_dec, _) = v.overflowing_sub(1);
+    mc.write(addr, v_dec)?;
+    sm83.reg.set_flag(Z, (v_dec == 0) as u8);
+    sm83.reg.set_flag(N, 1);
+    sm83.reg.set_flag(H, half_carry_dec(v_dec));
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_or_a_b(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.reg.a = sm83.reg.a | sm83.reg.b;
     sm83.reg.set_flag(Z, (sm83.reg.a == 0) as u8);
@@ -1011,7 +1023,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x32*/ exec_ld_to_deref_hl_dec_from_a,
     /*0x33*/ exec_invalid,
     /*0x34*/ exec_invalid,
-    /*0x35*/ exec_invalid,
+    /*0x35*/ exec_dec_deref_hl,
     /*0x36*/ exec_ld_to_deref_hl_from_immediate,
     /*0x37*/ exec_invalid,
     /*0x38*/ exec_jr_if_c,

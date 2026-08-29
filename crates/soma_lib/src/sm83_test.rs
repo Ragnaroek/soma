@@ -879,72 +879,124 @@ fn test_inc() -> Result<(), ExecErr> {
 
 #[test]
 fn test_dec() -> Result<(), ExecErr> {
-    let cases = [
+    let cases: [(&str, IO, Register, &[u8], Register, &[(u16, u8)]); 14] = [
         (
             "(dec %b) with 1 %b",
-            RegBuilder::new().b(0x01).f_z(0).f_h(0).reg(),
+            IO::init(),
+            RegBuilder::new().b(0x01).f_z(0).f_n(0).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_DEC_B.op_code],
             RegBuilder::new().b(0x00).f_z(1).f_n(1).f_h(0).reg(),
+            &[],
         ),
         (
             "(dec %b) with 0 %b",
-            RegBuilder::new().b(0x0).f_z(1).f_h(0).reg(),
+            IO::init(),
+            RegBuilder::new().b(0x0).f_z(1).f_n(0).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_DEC_B.op_code],
             RegBuilder::new().b(0xFF).f_z(0).f_n(1).f_h(1).reg(),
+            &[],
         ),
         (
             "(dec %b) no half carry",
+            IO::init(),
             RegBuilder::new().b(0x15).f_z(1).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_DEC_B.op_code],
             RegBuilder::new().b(0x14).f_z(0).f_n(1).f_h(0).reg(),
+            &[],
         ),
         (
             "(dec %b) half carry",
+            IO::init(),
             RegBuilder::new().b(0x10).f_z(1).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_DEC_B.op_code],
             RegBuilder::new().b(0x0F).f_z(0).f_n(1).f_h(1).reg(),
+            &[],
         ),
         (
             "(dec %c) with 1 %c",
+            IO::init(),
             RegBuilder::new().c(0x01).f_z(0).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_DEC_C.op_code],
             RegBuilder::new().c(0x00).f_z(1).f_n(1).f_h(0).reg(),
+            &[],
         ),
         (
             "(dec %c) with 0 %c",
+            IO::init(),
             RegBuilder::new().c(0x0).f_z(1).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_DEC_C.op_code],
             RegBuilder::new().c(0xFF).f_z(0).f_n(1).f_h(1).reg(),
+            &[],
         ),
         (
             "(dec %c) no half carry",
+            IO::init(),
             RegBuilder::new().c(0x15).f_z(1).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_DEC_C.op_code],
             RegBuilder::new().c(0x14).f_z(0).f_n(1).f_h(0).reg(),
+            &[],
         ),
         (
             "(dec %c) half carry",
+            IO::init(),
             RegBuilder::new().c(0x10).f_z(1).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_DEC_C.op_code],
             RegBuilder::new().c(0x0F).f_z(0).f_n(1).f_h(1).reg(),
+            &[],
         ),
         (
             "(dec %bc) with 1 %bc",
+            IO::init(),
             RegBuilder::new().bc(0x01).reg(),
             &[psy::arch::sm83::INSTR_DEC_BC.op_code],
             RegBuilder::new().bc(0x00).reg(),
+            &[],
         ),
         (
             "(dec %bc) with 0 %bc",
+            IO::init(),
             RegBuilder::new().bc(0x0).reg(),
             &[psy::arch::sm83::INSTR_DEC_BC.op_code],
             RegBuilder::new().bc(0xFFFF).reg(),
+            &[],
+        ),
+        (
+            "(dec (%hl)) with 1 (%hl)",
+            IO::init_with_value(0xFF80, 1)?,
+            RegBuilder::new().hl(0xFF80).f_z(0).f_n(0).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_DEREF_HL.op_code],
+            RegBuilder::new().hl(0xFF80).f_z(1).f_n(1).f_h(0).reg(),
+            &[(0xFF80, 0)],
+        ),
+        (
+            "(dec (%hl)) with 0 (%hl)",
+            IO::init_with_value(0xFF80, 0)?,
+            RegBuilder::new().hl(0xFF80).f_z(1).f_n(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_DEREF_HL.op_code],
+            RegBuilder::new().hl(0xFF80).f_z(0).f_n(1).f_h(1).reg(),
+            &[(0xFF80, 0xFF)],
+        ),
+        (
+            "(dec (%hl)) no half carry",
+            IO::init_with_value(0xFF80, 0x15)?,
+            RegBuilder::new().hl(0xFF80).f_z(1).f_n(0).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_DEC_DEREF_HL.op_code],
+            RegBuilder::new().hl(0xFF80).f_z(0).f_n(1).f_h(0).reg(),
+            &[(0xFF80, 0x14)],
+        ),
+        (
+            "(dec (%hl)) half carry",
+            IO::init_with_value(0xFF80, 0x10)?,
+            RegBuilder::new().hl(0xFF80).f_z(1).f_n(0).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_DEREF_HL.op_code],
+            RegBuilder::new().hl(0xFF80).f_z(0).f_n(1).f_h(1).reg(),
+            &[(0xFF80, 0x0F)],
         ),
     ];
 
-    for (exp, reg_init, mem, reg_after) in cases {
+    for (exp, io, reg_init, mem, reg_after, mem_checks) in cases {
         let rom = ROM::new_copy_from_slice(mem);
-        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        let (sm83, mc) = exec(io, reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
             1,
@@ -954,6 +1006,8 @@ fn test_dec() -> Result<(), ExecErr> {
             sm83.pc()
         );
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+
+        check_mem(mem_checks, &mc)?;
     }
     Ok(())
 }
