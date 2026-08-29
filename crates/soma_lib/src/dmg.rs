@@ -37,6 +37,7 @@ pub struct StepResult {
     /// the instruction timing.
     pub wait_time_millis: f64,
     /// The instruction that was executed in the step
+    pub pc: u16,
     pub instr: &'static Sm83Instr,
     pub fb_refresh: bool,
 }
@@ -67,6 +68,7 @@ impl<T> DMG<T> {
             return Err(ExecErr::GeneralError("Halted"));
         }
 
+        let pc_before = self.sm83.pc();
         let instr = self.sm83.execute(&mut self.mc)?;
 
         // update IO according to time progress
@@ -84,6 +86,7 @@ impl<T> DMG<T> {
 
         Ok(StepResult {
             wait_time_millis: 0.0, //14, // TODO compute wait time here for next step
+            pc: pc_before,
             instr,
             fb_refresh,
         })

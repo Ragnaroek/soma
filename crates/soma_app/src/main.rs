@@ -14,7 +14,7 @@ use std::{fs, time::Instant};
 use libsoma::dmg::{DMG, Time};
 use libsoma::rom::ROM;
 
-use crate::app::{Debugger, Emulation, FrameBuffer, SomaApp, StepControl};
+use crate::app::{Debugger, DisassembleInstr, Emulation, FrameBuffer, SomaApp, StepControl};
 use crate::gdb::gdb_serve;
 
 #[derive(Parser)]
@@ -120,6 +120,16 @@ fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<Frame
             r
         };
         if let Ok(step_result) = r {
+            // record the instruction in the disassemble cache
+            let mut dis_cache = emulation.disassemble_cache_write_lock();
+            dis_cache.insert(
+                step_result.pc,
+                DisassembleInstr {
+                    confirmed: true,
+                    instr: step_result.instr,
+                },
+            );
+
             if step_result.wait_time_millis != 0.0 {
                 thread::sleep(Duration::from_micros(
                     (step_result.wait_time_millis * 1000.0) as u64,

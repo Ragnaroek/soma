@@ -34,6 +34,7 @@ pub struct Emulation {
     dmg: RwLock<DMG<Instant>>,
     step_control: RwLock<StepControl>,
     breakpoints: RwLock<HashSet<u16>>,
+    disassemble_cache: RwLock<HashMap<u16, DisassembleInstr>>,
 }
 
 impl Emulation {
@@ -42,6 +43,7 @@ impl Emulation {
             dmg: RwLock::new(dmg),
             step_control: RwLock::new(init_step),
             breakpoints: RwLock::new(HashSet::new()),
+            disassemble_cache: RwLock::new(HashMap::new()),
         }
     }
 
@@ -51,6 +53,14 @@ impl Emulation {
 
     pub fn dmg_read_lock<'a>(&'a self) -> RwLockReadGuard<'a, DMG<Instant>> {
         self.dmg.read().expect("dmg read lock")
+    }
+
+    pub fn disassemble_cache_write_lock<'a>(
+        &'a self,
+    ) -> RwLockWriteGuard<'a, HashMap<u16, DisassembleInstr>> {
+        self.disassemble_cache
+            .write()
+            .expect("disassemble cache write lock")
     }
 
     pub fn step_control(&self) -> StepControl {
@@ -99,9 +109,9 @@ enum RegValueDisplay {
 }
 
 #[derive(Copy, Clone)]
-struct DisassembleInstr {
-    confirmed: bool,
-    instr: &'static Sm83Instr,
+pub struct DisassembleInstr {
+    pub confirmed: bool,
+    pub instr: &'static Sm83Instr,
 }
 
 struct JumpToDialogState {
@@ -110,7 +120,6 @@ struct JumpToDialogState {
 }
 
 struct DebuggerState {
-    pub disassemble_cache: HashMap<u16, DisassembleInstr>,
     pub reg_value_display: RegValueDisplay,
     pub asm_view_at: AsmViewAt,
     pub jump_to_dialog_state: JumpToDialogState,
@@ -126,7 +135,6 @@ enum AsmViewAt {
 impl DebuggerState {
     pub fn new() -> DebuggerState {
         DebuggerState {
-            disassemble_cache: HashMap::new(),
             reg_value_display: RegValueDisplay::Hex,
             asm_view_at: AsmViewAt::PC,
             jump_to_dialog_state: JumpToDialogState {
@@ -337,6 +345,7 @@ impl SomaApp {
                         .show(ui, |ui| {
                             let debugger = self.debugger.as_mut().expect("debugger");
                             let dmg = debugger.emulator.dmg_read_lock();
+                            let mut dis_cache = debugger.emulator.disassemble_cache_write_lock();
                             let rom = dmg.mc.rom.as_ref().expect("ROM");
 
                             let (viewport_pos, confirmed) = match debugger.state.asm_view_at {
@@ -352,22 +361,17 @@ impl SomaApp {
                                 .min(rom.size());
 
                             // disassemble the instruction the view revolves around into the cache
-                            disassemble_pc(
-                                viewport_pos as u16,
-                                &dmg,
-                                &mut debugger.state.disassemble_cache,
-                                confirmed,
-                            );
+                            disassemble_pc(viewport_pos as u16, &dmg, &mut dis_cache, confirmed);
                             predict_disassemble_around_pc(
                                 viewport_min as u16,
                                 viewport_max as u16,
                                 &dmg,
-                                &mut debugger.state.disassemble_cache,
+                                &mut dis_cache,
                             );
 
                             // extract enough instructions from the cache
                             let instrs = instr_in_range(
-                                &debugger.state.disassemble_cache,
+                                &dis_cache,
                                 viewport_min as u16,
                                 viewport_max as u16,
                             );
