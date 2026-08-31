@@ -106,7 +106,7 @@ impl<T> DMG<T> {
 
                 let tile_map_addr = 0x9800 + y as u16 * 32 + x as u16;
                 let tile_map_ix = self.mc.read(tile_map_addr)? as u16;
-                let tile_start = 0x9000 + tile_map_ix * 16;
+                let tile_start = self.tile_start_offset()? + tile_map_ix * 16;
 
                 let mut tile_i = tile_start;
                 for _tile_row in 0..8 {
@@ -160,5 +160,14 @@ impl<T> DMG<T> {
             }
         }
         Ok(())
+    }
+
+    fn tile_start_offset(&self) -> Result<u16, ExecErr> {
+        let lcdc = self.mc.read(0xFF40)?;
+        if (lcdc & (1 << 4)) != 0 {
+            Ok(0x8000)
+        } else {
+            Ok(0x8800)
+        }
     }
 }
