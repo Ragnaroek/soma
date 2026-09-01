@@ -5,8 +5,14 @@ use crate::memory::MemoryController;
 use crate::rom::ROM;
 use crate::sm83::{ExecErr, SM83};
 
-pub const RESOLUTION_X: usize = 166;
+pub const RESOLUTION_X: usize = 160;
 pub const RESOLUTION_Y: usize = 144;
+
+const NUM_TILES_WIDTH: usize = 20;
+const NUM_TILES_HEIGHT: usize = 18;
+const TILE_DIM: usize = 8;
+const TILE_WIDTH_BYTES: usize = TILE_DIM * 3;
+const TILE_HEIGHT_BYTES: usize = TILE_DIM * 3;
 
 pub struct DMG<T> {
     time: Time<T>,
@@ -99,23 +105,39 @@ impl<T> DMG<T> {
     pub fn fb_rgb(&self, fb: &mut [u8]) -> Result<(), ExecErr> {
         // 20x18 only visible, only render that and figure out
         // how the window is slided
-        for y in 0..32usize {
-            for x in 0..32usize {
-                // upper left corner of tile
-                let mut dst = (y * 8 * 3 * 32 * 8) + (x * 8 * 3);
 
-                let tile_map_addr = 0x9800 + y as u16 * 32 + x as u16;
+        for y in 0..18 {
+            //32usize {
+            for x in 0..20 {
+                //32usize {
+                // upper left corner of tile
+                // x = 12, y = 17
+                let mut dst =
+                    (y * NUM_TILES_WIDTH * TILE_HEIGHT_BYTES * TILE_DIM) + (x * TILE_WIDTH_BYTES);
+
+                //                if x == 19 && y == 0 {
+                //                    panic!("first dest = {}", dst);
+                //                }
+
+                let tile_map_addr = 0x9800 + y as u16 * NUM_TILES_WIDTH as u16 + x as u16;
                 let tile_map_ix = self.mc.read(tile_map_addr)? as u16;
                 let tile_start = self.tile_start_offset()? + tile_map_ix * 16;
 
                 let mut tile_i = tile_start;
-                for _tile_row in 0..8 {
+                for tile_row in 0..8 {
                     let col_0 = self.mc.read(tile_i)?;
                     tile_i += 1;
                     let col_1 = self.mc.read(tile_i)?;
                     tile_i += 1;
 
                     for tile_col in (0..8).rev() {
+                        /*if dst >= fb.len() - 3 {
+                            panic!(
+                                "dst={} x={},y={},tile_row={},tile_col={}",
+                                dst, x, y, tile_row, tile_col
+                            );
+                            //    return Ok(());
+                        }*/
                         let bit_mask = 1 << tile_col;
 
                         let mut p = 0b00;
@@ -155,7 +177,7 @@ impl<T> DMG<T> {
                         dst += 3;
                     }
 
-                    dst += 31 * 8 * 3;
+                    dst += (NUM_TILES_WIDTH - 1) * TILE_WIDTH_BYTES;
                 }
             }
         }

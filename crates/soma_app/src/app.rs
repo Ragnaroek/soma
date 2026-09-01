@@ -5,16 +5,13 @@ use std::{collections::HashMap, sync::Arc};
 use egui::{Button, Color32, FontDefinitions, Frame, Grid, Pos2, Rect, ScrollArea, Stroke};
 use psy::arch::sm83::{MAX_INSTRUCTION_BYTE_LENGTH, Sm83Instr};
 
-use libsoma::dmg::DMG;
+use libsoma::dmg::{self, DMG};
 use libsoma::rom::ROM;
 use libsoma::sm83;
 use std::time::Instant;
 
 const REG_PANEL_WIDTH: f32 = 210.0;
 const STACK_PANEL_WIDTH: f32 = 210.0;
-
-const DISPLAY_HEIGHT: f32 = 256.0;
-const DISPLAY_WIDTH: f32 = 256.0;
 
 const MARGIN: f32 = 5.0;
 const MARGIN_ASM: f32 = 4.0;
@@ -662,7 +659,7 @@ impl eframe::App for SomaApp {
 
                 if fb.needs_update {
                     let image = egui::ColorImage::from_rgb(
-                        [DISPLAY_WIDTH as usize, DISPLAY_HEIGHT as usize],
+                        [dmg::RESOLUTION_X, dmg::RESOLUTION_Y],
                         &fb.buffer,
                     );
                     let texture_handle =
@@ -676,20 +673,20 @@ impl eframe::App for SomaApp {
                 }
             });
 
-        let tile_height = DISPLAY_HEIGHT;
-        let tile_width = screen_size.width() - (DISPLAY_WIDTH + MARGIN);
+        let tile_height = dmg::RESOLUTION_Y as f32;
+        let tile_width = screen_size.width() - (dmg::RESOLUTION_X as f32 + MARGIN);
         egui::Area::new(egui::Id::new("tile_view"))
-            .fixed_pos(egui::pos2(DISPLAY_WIDTH + MARGIN, 0.0))
+            .fixed_pos(egui::pos2(dmg::RESOLUTION_X as f32 + MARGIN, 0.0))
             .show(ui, |ui| {
                 self.render_memory_view(ui, tile_width, tile_height);
             });
 
         let asm_rect = Rect::from_min_max(
-            Pos2::new(0.0, DISPLAY_HEIGHT + MARGIN),
+            Pos2::new(0.0, dmg::RESOLUTION_Y as f32 + MARGIN),
             Pos2::new(screen_size.width(), screen_size.height()),
         );
         egui::Area::new(egui::Id::new("asm_view"))
-            .fixed_pos(egui::pos2(0.0, DISPLAY_HEIGHT + MARGIN))
+            .fixed_pos(egui::pos2(0.0, dmg::RESOLUTION_Y as f32 + MARGIN))
             .show(ui, |ui| {
                 self.render_asm_view(ui, asm_rect);
             });
