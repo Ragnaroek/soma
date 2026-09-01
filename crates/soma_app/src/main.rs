@@ -11,7 +11,7 @@ use std::thread;
 use std::time::Duration;
 use std::{fs, time::Instant};
 
-use libsoma::dmg::{DMG, Time};
+use libsoma::dmg::{self, DMG, Time};
 use libsoma::rom::ROM;
 
 use crate::app::{Debugger, DisassembleInstr, Emulation, FrameBuffer, SomaApp, StepControl};
@@ -40,7 +40,7 @@ fn main() -> eframe::Result {
     let rom = ROM::new_copy_from_slice(&rom_data);
 
     let frame_buffer = Arc::new(RwLock::new(FrameBuffer {
-        buffer: vec![0u8; 32 * 32 * 64 * 3], //vec![0u8; dmg::RESOLUTION_X * dmg::RESOLUTION_Y * 3],
+        buffer: vec![0u8; dmg::RESOLUTION_X * dmg::RESOLUTION_Y * 3],
         needs_update: true,
     }));
     let frame_buffer_emu = frame_buffer.clone();

@@ -5,8 +5,14 @@ use crate::memory::MemoryController;
 use crate::rom::ROM;
 use crate::sm83::{ExecErr, SM83};
 
-pub const RESOLUTION_X: usize = 166;
+pub const RESOLUTION_X: usize = 160;
 pub const RESOLUTION_Y: usize = 144;
+
+const NUM_TILES_WIDTH: usize = 20;
+const NUM_TILES_HEIGHT: usize = 18;
+const TILE_DIM: usize = 8;
+const TILE_WIDTH_BYTES: usize = TILE_DIM * 3;
+const TILE_HEIGHT_BYTES: usize = TILE_DIM * 3;
 
 pub struct DMG<T> {
     time: Time<T>,
@@ -95,16 +101,15 @@ impl<T> DMG<T> {
     /// Write the current content of the video-ram to the suppplied
     /// framebuffer in RGB format.
     /// The size needs to be at least 20 x 18 x 64 x 3 bytes.
-    /// 1.474.560 pixel
     pub fn fb_rgb(&self, fb: &mut [u8]) -> Result<(), ExecErr> {
-        // 20x18 only visible, only render that and figure out
-        // how the window is slided
-        for y in 0..32usize {
-            for x in 0..32usize {
+        // TODO window sliding. Currently the windows from tile 0 to 20 and 18 is fixed rendered
+        for y in 0..18 {
+            for x in 0..20 {
                 // upper left corner of tile
-                let mut dst = (y * 8 * 3 * 32 * 8) + (x * 8 * 3);
+                let mut dst =
+                    (y * NUM_TILES_WIDTH * TILE_HEIGHT_BYTES * TILE_DIM) + (x * TILE_WIDTH_BYTES);
 
-                let tile_map_addr = 0x9800 + y as u16 * 32 + x as u16;
+                let tile_map_addr = 0x9800 + y as u16 * 32 + x as u16; // * 32 as we have to slide over the whole tile width in tile mem
                 let tile_map_ix = self.mc.read(tile_map_addr)? as u16;
                 let tile_start = self.tile_start_offset()? + tile_map_ix * 16;
 
@@ -127,7 +132,7 @@ impl<T> DMG<T> {
                         }
 
                         match p {
-                            // TODO this can be done with a 4x3 static array with the colour data!
+                            // TODO this can be done with a 4x3 static array with the colour data! (is this faster?)
                             0 => {
                                 fb[dst + 0] = 0xEA;
                                 fb[dst + 1] = 0xEA;
@@ -155,7 +160,7 @@ impl<T> DMG<T> {
                         dst += 3;
                     }
 
-                    dst += 31 * 8 * 3;
+                    dst += (NUM_TILES_WIDTH - 1) * TILE_WIDTH_BYTES; // - 1 as one tile row has been put into the fb already
                 }
             }
         }
