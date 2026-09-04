@@ -1,5 +1,6 @@
 use psy::arch::sm83::Sm83Instr;
 
+use crate::interrupt::vblank_interrupt;
 use crate::io::IO;
 use crate::memory::MemoryController;
 use crate::rom::ROM;
@@ -9,7 +10,6 @@ pub const RESOLUTION_X: usize = 160;
 pub const RESOLUTION_Y: usize = 144;
 
 const NUM_TILES_WIDTH: usize = 20;
-const NUM_TILES_HEIGHT: usize = 18;
 const TILE_DIM: usize = 8;
 const TILE_WIDTH_BYTES: usize = TILE_DIM * 3;
 const TILE_HEIGHT_BYTES: usize = TILE_DIM * 3;
@@ -24,9 +24,15 @@ pub struct DMG<T> {
 }
 
 const CPU_FREQ: f64 = 4194304.0; // Hz
-const VBLANK_FREQ: f64 = CPU_FREQ / 70224.0; // ~59.7 Hz
-const VBLANK_SCANLINE_FREQ: f64 = VBLANK_FREQ / 154.0;
-const VBLANK_SCANLINE_MILLIS: f64 = 1000.0 / VBLANK_SCANLINE_FREQ;
+/// One cyle in the CPU takes this amount of ms
+const CPU_CYCLE_MILLIS: f64 = 1000.0 / CPU_FREQ; // ~0.0002384185791015625 ms
+/// including the VBLANK period lines 144 to 153s
+const LC_H_LINES: f64 = 154.0;
+/// Amount of cycle one line render takes in the LC. In reference
+/// to the CPU frequency and cycles
+const LC_H_LINE_NUM_CYCLE: f64 = 456.0;
+/// Milliseconds it takes to render one line to the LC.
+const LC_H_LINE_MILLIS: f64 = LC_H_LINE_NUM_CYCLE * CPU_CYCLE_MILLIS;
 
 /// should return milliseconds elapsed since a reference time.
 /// requirement is just monotonic increasing time, not absolute
@@ -80,8 +86,12 @@ impl<T> DMG<T> {
         // update IO according to time progress
         let now = (self.time.now)(&self.time.ref_time);
 
-        let at_scanline = (now % VBLANK_SCANLINE_MILLIS) as u8;
-        self.mc.write(0xFF44, at_scanline)?;
+        let h_line = ((now / LC_H_LINE_MILLIS) % LC_H_LINES) as u8;
+        self.mc.write(0xFF44, h_line)?;
+
+        if h_line == 144 {
+            vblank_interrupt(&mut self.sm83, &mut self.mc)?;
+        }
 
         let fb_refresh = if (now - self.last_refresh_at) > 14.0 {
             self.last_refresh_at = now;

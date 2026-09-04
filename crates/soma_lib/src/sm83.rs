@@ -325,7 +325,7 @@ fn exec_jp(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     Ok(())
 }
 
-fn exec_jp_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+fn exec_jp_hl(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.set_pc(sm83.reg.hl());
     Ok(())
 }
@@ -802,7 +802,7 @@ fn exec_rrca(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr>
 
 fn exec_call(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = mc.read_u16(sm83.pc() + 1)?;
-    internal_call_to_addr(sm83, mc, addr, 3)
+    call_to_addr(sm83, mc, addr, 3)
 }
 
 fn exec_ret(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
@@ -817,7 +817,7 @@ fn exec_ret(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
 }
 
 fn exec_rst_28(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    internal_call_to_addr(sm83, mc, 0x28, 1)
+    call_to_addr(sm83, mc, 0x28, 1)
 }
 
 // POP
@@ -911,22 +911,6 @@ fn exec_push_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecEr
     mc.write(sm83.reg.sp, addr[0])?;
 
     sm83.inc_pc(1);
-    Ok(())
-}
-
-fn internal_call_to_addr(
-    sm83: &mut SM83,
-    mc: &mut MemoryController,
-    addr: u16,
-    op_size: u16,
-) -> Result<(), ExecErr> {
-    let pc = (sm83.pc() + op_size).to_le_bytes();
-    sm83.dec_sp(1);
-    mc.write(sm83.reg.sp, pc[1])?; // MSB first, as stack is _decreased_
-    sm83.dec_sp(1);
-    mc.write(sm83.reg.sp, pc[0])?;
-
-    sm83.set_pc(addr);
     Ok(())
 }
 
@@ -1488,6 +1472,22 @@ pub static EXEC_PREFIX_TABLE: [Sm83PrefixExec; psy::arch::sm83::SM83_NUM_PREFIX_
 ];
 
 // helper
+
+pub fn call_to_addr(
+    sm83: &mut SM83,
+    mc: &mut MemoryController,
+    addr: u16,
+    op_size: u16,
+) -> Result<(), ExecErr> {
+    let pc = (sm83.pc() + op_size).to_le_bytes();
+    sm83.dec_sp(1);
+    mc.write(sm83.reg.sp, pc[1])?; // MSB first, as stack is _decreased_
+    sm83.dec_sp(1);
+    mc.write(sm83.reg.sp, pc[0])?;
+
+    sm83.set_pc(addr);
+    Ok(())
+}
 
 fn half_carry_dec(v: u8) -> u8 {
     if v & 0x0F == 0x0F { 1 } else { 0 }
