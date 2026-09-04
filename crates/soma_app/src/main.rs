@@ -154,5 +154,6 @@ fn std_now(ref_time: &Instant) -> f64 {
 }
 
 fn debug_print(txt: &str, v: u16) {
-    println!("{} = 0x{:x}", txt, v)
+    //println!("{} = 0x{:x}", txt, v)
+    println!("{} = {}", txt, v)
 }
