@@ -1426,16 +1426,39 @@ fn test_call() -> Result<(), ExecErr> {
 
 #[test]
 fn test_ret() -> Result<(), ExecErr> {
-    let cases = [(
-        "(ret)",
-        [psy::arch::sm83::INSTR_RET.op_code],
-        0xFFFC,
-        0xFFFE,
-        0,
-        0x168,
-        0x68,
-        0x01,
-    )];
+    let cases = [
+        (
+            "(ret)",
+            [psy::arch::sm83::INSTR_RET.op_code],
+            0xFFFC,
+            0xFFFE,
+            0,
+            0x168,
+            0x68,
+            0x01,
+        ),
+        (
+            "(ret #nz) with zero z val",
+            [psy::arch::sm83::INSTR_RET_NZ.op_code],
+            0xFFFC,
+            0xFFFE,
+            0,
+            1,
+            0x68, // stack value does not matter
+            0x01,
+        ),
+        (
+            // TODO define registers for this test
+            "(ret #nz) with non-zero z val",
+            [psy::arch::sm83::INSTR_RET_NZ.op_code],
+            0xFFFC,
+            0xFFFE,
+            0,
+            0x168,
+            0x68,
+            0x01,
+        ),
+    ];
 
     for (exp, mem, sp_start, sp_after, pc_start, pc_after, sp_low, sp_high) in cases {
         let rom = ROM::new_copy_from_slice(&mem);
