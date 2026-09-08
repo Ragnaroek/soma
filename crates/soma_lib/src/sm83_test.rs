@@ -1426,23 +1426,43 @@ fn test_call() -> Result<(), ExecErr> {
 
 #[test]
 fn test_ret() -> Result<(), ExecErr> {
-    let cases = [(
-        "(ret)",
-        [psy::arch::sm83::INSTR_RET.op_code],
-        0xFFFC,
-        0xFFFE,
-        0,
-        0x168,
-        0x68,
-        0x01,
-    )];
+    let cases = [
+        (
+            "(ret)",
+            RegBuilder::new().pc(0).sp(0xFFFC).reg(),
+            [psy::arch::sm83::INSTR_RET.op_code],
+            0xFFFE,
+            0x168,
+            0x68,
+            0x01,
+        ),
+        (
+            "(ret #nz) with z is zero",
+            RegBuilder::new().pc(0).sp(0xFFFC).f_z(1).reg(),
+            [psy::arch::sm83::INSTR_RET_NZ.op_code],
+            0xFFFC, // don't return and stay with the current stack ptr value
+            1,
+            0x68, // stack value does not matter
+            0x01,
+        ),
+        (
+            "(ret #nz) with z is not zero",
+            RegBuilder::new().pc(0).sp(0xFFFC).f_z(0).reg(),
+            [psy::arch::sm83::INSTR_RET_NZ.op_code],
+            0xFFFE,
+            0x168,
+            0x68,
+            0x01,
+        ),
+    ];
 
-    for (exp, mem, sp_start, sp_after, pc_start, pc_after, sp_low, sp_high) in cases {
+    for (exp, reg, mem, sp_after, pc_after, sp_low, sp_high) in cases {
         let rom = ROM::new_copy_from_slice(&mem);
         let mut mc = MemoryController::new(IO::init(), rom);
+        let sp_start = reg.sp;
         mc.write(sp_start, sp_low)?;
         mc.write(sp_start + 1, sp_high)?;
-        let (sm83, _) = exec_with_mc(mc, RegBuilder::new().pc(pc_start).sp(sp_start).reg())?;
+        let (sm83, _) = exec_with_mc(mc, reg)?;
         assert_eq!(
             sm83.reg.sp, sp_after,
             "{}, want sp 0x{:x}, got 0x{:x}",
