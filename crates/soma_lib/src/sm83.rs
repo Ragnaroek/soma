@@ -11,6 +11,8 @@ pub const N: u8 = 1 << 6;
 pub const H: u8 = 1 << 5;
 pub const C: u8 = 1 << 4;
 
+const BIT_0: u8 = 1 << 0;
+
 /// SM83 CPU emulator
 pub struct SM83 {
     halted: bool,
@@ -934,6 +936,8 @@ fn exec_prefix_invalid(_sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(
     Err(ExecErr::GeneralError("invalid prefix instruction"))
 }
 
+// SWAP
+
 fn exec_prefix_swap_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     let h = sm83.reg.a & 0xF0;
     let l = sm83.reg.a & 0x0F;
@@ -945,6 +949,8 @@ fn exec_prefix_swap_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(),
     sm83.reg.set_flag(C, 0);
     Ok(())
 }
+
+// RST
 
 fn exec_prefix_rst_0_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.reg.a = rst_x(sm83.reg.a, 0);
@@ -960,6 +966,11 @@ fn exec_prefix_rst_7_deref_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Res
 
 fn rst_x(v: u8, x: u8) -> u8 {
     v & !(1 << x)
+}
+
+fn exec_prefix_bit_0_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    sm83.reg.set_flag(Z, ((sm83.reg.a & BIT_0) == 0) as u8);
+    Ok(())
 }
 
 pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
@@ -1293,7 +1304,7 @@ pub static EXEC_PREFIX_TABLE: [Sm83PrefixExec; psy::arch::sm83::SM83_NUM_PREFIX_
     /*0x44*/ exec_prefix_invalid,
     /*0x45*/ exec_prefix_invalid,
     /*0x46*/ exec_prefix_invalid,
-    /*0x47*/ exec_prefix_invalid,
+    /*0x47*/ exec_prefix_bit_0_a,
     /*0x48*/ exec_prefix_invalid,
     /*0x49*/ exec_prefix_invalid,
     /*0x4A*/ exec_prefix_invalid,

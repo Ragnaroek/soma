@@ -1750,6 +1750,51 @@ fn test_prefix_reset() -> Result<(), ExecErr> {
     Ok(())
 }
 
+#[test]
+fn test_prefix_bit() -> Result<(), ExecErr> {
+    let cases: [(&str, IO, Register, &[u8], Register, &[(u16, u8)]); 2] = [
+        (
+            "(bit 0 %a) with bit 0 not zero",
+            IO::init(),
+            RegBuilder::new().a(0b11111111).f_z(1).reg(),
+            &[
+                psy::arch::sm83::INSTR_PREFIX.op_code,
+                psy::arch::sm83::INSTR_PREFIX_BIT_0_A.op_code,
+            ],
+            RegBuilder::new().a(0b11111111).f_z(0).reg(),
+            &[],
+        ),
+        (
+            "(bit 0 %a) with bit 0 zero",
+            IO::init(),
+            RegBuilder::new().a(0b11111110).f_z(0).reg(),
+            &[
+                psy::arch::sm83::INSTR_PREFIX.op_code,
+                psy::arch::sm83::INSTR_PREFIX_BIT_0_A.op_code,
+            ],
+            RegBuilder::new().a(0b11111110).f_z(1).reg(),
+            &[],
+        ),
+    ];
+
+    for (exp, io, reg_init, mem, reg_after, mem_checks) in cases {
+        let rom = ROM::new_copy_from_slice(mem);
+        let (sm83, mc) = exec(io, reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            2,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            2,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+
+        check_mem(mem_checks, &mc)?
+    }
+    Ok(())
+}
+
 // helper
 
 fn check_mem(mem_checks: &[(u16, u8)], mc: &MemoryController) -> Result<(), ExecErr> {
