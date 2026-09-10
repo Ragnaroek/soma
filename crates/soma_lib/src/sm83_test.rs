@@ -222,7 +222,7 @@ fn test_jr() -> Result<(), ExecErr> {
 
 #[test]
 fn test_ld() -> Result<(), ExecErr> {
-    let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 25] = [
+    let cases: [(&str, IO, Register, &[u8], u16, Register, &[(u16, u8)]); 26] = [
         (
             "(ld %a 1)",
             IO::init(),
@@ -273,6 +273,18 @@ fn test_ld() -> Result<(), ExecErr> {
             &[(0xFF26, 0xAB)],
         ),
         (
+            "(ld (%hl) 0x11)",
+            IO::init(),
+            RegBuilder::new().h(0xC0).l(0x10).reg(),
+            &[
+                psy::arch::sm83::INSTR_LD_TO_DEREF_HL_FROM_IMMEDIATE.op_code,
+                0x11,
+            ],
+            2,
+            RegBuilder::new().h(0xC0).l(0x10).reg(),
+            &[(0xC010, 0x11)],
+        ),
+        (
             "(ld (%de) %a)",
             IO::init(),
             RegBuilder::new().a(0x5).de(0xFF16).reg(),
@@ -282,12 +294,21 @@ fn test_ld() -> Result<(), ExecErr> {
             &[(0xFF16, 0x5)],                          // address stores register value
         ),
         (
+            "(ld (%hl) %a)",
+            IO::init(),
+            RegBuilder::new().a(0xAB).hl(0xFF26).reg(),
+            &[psy::arch::sm83::INSTR_LD_TO_DEREF_HL_FROM_A.op_code],
+            1,
+            RegBuilder::new().a(0xAB).hl(0xFF26).reg(), // reg a stays unchanged
+            &[(0xFF26, 0xAB)],
+        ),
+        (
             "(ld (%hl +) %a)",
             IO::init(),
             RegBuilder::new().a(0xAB).hl(0xFF26).reg(),
             &[psy::arch::sm83::INSTR_LD_TO_DEREF_HL_INC_FROM_A.op_code],
             1,
-            RegBuilder::new().a(0xAB).hl(0xFF27).reg(), // reg a stays unchanged
+            RegBuilder::new().a(0xAB).hl(0xFF27).reg(), // reg a is incremented
             &[(0xFF26, 0xAB)], // address before increment stores register value
         ),
         (
@@ -413,18 +434,6 @@ fn test_ld() -> Result<(), ExecErr> {
             3,
             RegBuilder::new().h(0x00).l(0x90).reg(),
             &[],
-        ),
-        (
-            "(ld (%hl) 0x11)",
-            IO::init(),
-            RegBuilder::new().h(0xC0).l(0x10).reg(),
-            &[
-                psy::arch::sm83::INSTR_LD_TO_DEREF_HL_FROM_IMMEDIATE.op_code,
-                0x11,
-            ],
-            2,
-            RegBuilder::new().h(0xC0).l(0x10).reg(),
-            &[(0xC010, 0x11)],
         ),
         (
             "(ld %bc 0x6004)",
