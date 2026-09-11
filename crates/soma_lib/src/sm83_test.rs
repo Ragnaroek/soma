@@ -802,6 +802,26 @@ fn test_add() -> Result<(), ExecErr> {
 #[test]
 fn test_inc() -> Result<(), ExecErr> {
     let cases = [
+        // (inc %a)
+        (
+            "(inc %a), zero result",
+            RegBuilder::new().a(0xFF).f_z(0).f_n(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_INC_A.op_code],
+            RegBuilder::new().a(0x00).f_z(1).f_n(0).f_h(1).reg(),
+        ),
+        (
+            "(inc %a), non-zero result",
+            RegBuilder::new().a(0x00).f_z(1).f_n(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_INC_A.op_code],
+            RegBuilder::new().a(0x01).f_z(0).f_n(0).f_h(0).reg(),
+        ),
+        (
+            "(inc %a), half-carry",
+            RegBuilder::new().a(0x0F).f_z(1).f_n(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_INC_A.op_code],
+            RegBuilder::new().a(0x10).f_z(0).f_n(0).f_h(1).reg(),
+        ),
+        // (inc %c)
         (
             "(inc %c), zero result",
             RegBuilder::new().c(0xFF).f_z(0).f_n(1).f_h(1).reg(),
