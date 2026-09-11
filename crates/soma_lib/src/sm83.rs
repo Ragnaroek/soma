@@ -593,6 +593,12 @@ fn exec_ld_to_c_from_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<()
     Ok(())
 }
 
+fn exec_ld_to_d_from_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    sm83.reg.d = sm83.reg.a;
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_ld_to_e_from_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.reg.e = sm83.reg.a;
     sm83.inc_pc(1);
@@ -1086,7 +1092,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x54*/ exec_invalid,
     /*0x55*/ exec_invalid,
     /*0x56*/ exec_ld_to_d_from_deref_hl,
-    /*0x57*/ exec_invalid,
+    /*0x57*/ exec_ld_to_d_from_a,
     /*0x58*/ exec_invalid,
     /*0x59*/ exec_invalid,
     /*0x5A*/ exec_invalid,
