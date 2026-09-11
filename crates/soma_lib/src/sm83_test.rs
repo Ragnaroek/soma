@@ -1176,6 +1176,46 @@ fn test_or() -> Result<(), ExecErr> {
                 .f_c(0)
                 .reg(),
         ),
+        (
+            "(or %a %d) non-zero result",
+            RegBuilder::new()
+                .a(0x01)
+                .d(0x10)
+                .f_z(1)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
+            &[psy::arch::sm83::INSTR_OR_A_D.op_code],
+            RegBuilder::new()
+                .a(0x11)
+                .d(0x10)
+                .f_z(0)
+                .f_n(0)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
+        ),
+        (
+            "(or %a %d) zero result",
+            RegBuilder::new()
+                .a(0x00)
+                .d(0x00)
+                .f_z(0)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
+            &[psy::arch::sm83::INSTR_OR_A_D.op_code],
+            RegBuilder::new()
+                .a(0x00)
+                .d(0x00)
+                .f_z(1)
+                .f_n(0)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
+        ),
     ];
 
     for (exp, reg_init, mem, reg_after) in cases {
