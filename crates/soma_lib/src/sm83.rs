@@ -284,15 +284,16 @@ fn exec_di(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
 }
 
 // CP
-
 fn exec_cp_immediate(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
-    let v = mc.read(sm83.pc() + 1)?;
-    let (z, carry) = sm83.reg.a.overflowing_sub(v);
-    sm83.reg.set_flag(Z, z);
-    sm83.reg.set_flag(N, 1);
-    sm83.reg.set_flag(H, z & H);
-    sm83.reg.set_flag(C, carry as u8);
+    let immediate = mc.read(sm83.pc() + 1)?;
+    let _ = sub(sm83, sm83.reg.a, immediate);
     sm83.inc_pc(2);
+    Ok(())
+}
+
+fn exec_cp_a_c(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let _ = sub(sm83, sm83.reg.a, sm83.reg.c);
+    sm83.inc_pc(1);
     Ok(())
 }
 
@@ -1210,7 +1211,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xB6*/ exec_invalid,
     /*0xB7*/ exec_invalid,
     /*0xB8*/ exec_invalid,
-    /*0xB9*/ exec_invalid,
+    /*0xB9*/ exec_cp_a_c,
     /*0xBA*/ exec_invalid,
     /*0xBB*/ exec_invalid,
     /*0xBC*/ exec_invalid,
@@ -1558,6 +1559,17 @@ pub fn call_to_addr(
 
     sm83.set_pc(addr);
     Ok(())
+}
+
+/// Subtraction with supplied operands.
+/// Modifies the status registers only, but not the operands or the pc.
+fn sub(sm83: &mut SM83, op1: u8, op2: u8) -> u8 {
+    let (sub, carry) = op1.overflowing_sub(op2);
+    sm83.reg.set_flag(Z, (sub == 0) as u8);
+    sm83.reg.set_flag(N, 1);
+    sm83.reg.set_flag(H, half_carry_dec(sub));
+    sm83.reg.set_flag(C, carry as u8);
+    sub
 }
 
 fn half_carry_dec(v: u8) -> u8 {

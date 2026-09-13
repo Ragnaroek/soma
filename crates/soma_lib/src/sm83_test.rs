@@ -632,18 +632,103 @@ fn test_ldh() -> Result<(), ExecErr> {
 
 #[test]
 fn test_cp() -> Result<(), ExecErr> {
-    let cases: [(&str, Register, &[u8], Register); 2] = [
+    let cases: [(&str, Register, &[u8], Register); 10] = [
+        // (cp n8)
         (
-            "(cp 0x90) with a = 1 (not equal)",
-            RegBuilder::new().a(1).reg(),
-            &[psy::arch::sm83::INSTR_CP_IMMEDIATE.op_code, 0x90],
-            RegBuilder::new().a(1).f_z(1).f_n(1).f_h(1).f_c(1).reg(),
+            "(cp n8) - borrow both",
+            RegBuilder::new().a(0x10).reg(),
+            &[psy::arch::sm83::INSTR_CP_IMMEDIATE.op_code, 0x21],
+            RegBuilder::new().a(0x10).f_z(0).f_n(1).f_h(1).f_c(1).reg(),
         ),
         (
-            "(cp 0x90) with a = 0x90 (equal)",
-            RegBuilder::new().a(0x90).reg(),
-            &[psy::arch::sm83::INSTR_CP_IMMEDIATE.op_code, 0x90],
-            RegBuilder::new().a(0x90).f_z(0).f_n(1).f_h(0).f_c(0).reg(),
+            "(cp n8) - half-carry without carry",
+            RegBuilder::new().a(0x20).reg(),
+            &[psy::arch::sm83::INSTR_CP_IMMEDIATE.op_code, 0x11],
+            RegBuilder::new().a(0x20).f_z(0).f_n(1).f_h(1).f_c(0).reg(),
+        ),
+        (
+            "(cp n8) - carry with half-carry",
+            RegBuilder::new().a(0x0F).reg(),
+            &[psy::arch::sm83::INSTR_CP_IMMEDIATE.op_code, 0x1F],
+            RegBuilder::new().a(0x0F).f_z(0).f_n(1).f_h(0).f_c(1).reg(),
+        ),
+        (
+            "(cp n8) - no carries",
+            RegBuilder::new().a(0x2F).reg(),
+            &[psy::arch::sm83::INSTR_CP_IMMEDIATE.op_code, 0x1F],
+            RegBuilder::new().a(0x2F).f_z(0).f_n(1).f_h(0).f_c(0).reg(),
+        ),
+        (
+            "(cp n8) - zero result, no carries",
+            RegBuilder::new().a(0x40).reg(),
+            &[psy::arch::sm83::INSTR_CP_IMMEDIATE.op_code, 0x40],
+            RegBuilder::new().a(0x40).f_z(1).f_n(1).f_h(0).f_c(0).reg(),
+        ),
+        // (cp %a %c)
+        (
+            "(cp %a %c) - borrow both",
+            RegBuilder::new().a(0x10).c(0x21).reg(),
+            &[psy::arch::sm83::INSTR_CP_A_C.op_code],
+            RegBuilder::new()
+                .a(0x10)
+                .c(0x21)
+                .f_z(0)
+                .f_n(1)
+                .f_h(1)
+                .f_c(1)
+                .reg(),
+        ),
+        (
+            "(cp %a %c) - half-carry without carry",
+            RegBuilder::new().a(0x20).c(0x11).reg(),
+            &[psy::arch::sm83::INSTR_CP_A_C.op_code],
+            RegBuilder::new()
+                .a(0x20)
+                .c(0x11)
+                .f_z(0)
+                .f_n(1)
+                .f_h(1)
+                .f_c(0)
+                .reg(),
+        ),
+        (
+            "(cp %a %c) - carry with half-carry",
+            RegBuilder::new().a(0x0F).c(0x1F).reg(),
+            &[psy::arch::sm83::INSTR_CP_A_C.op_code],
+            RegBuilder::new()
+                .a(0x0F)
+                .c(0x1F)
+                .f_z(0)
+                .f_n(1)
+                .f_h(0)
+                .f_c(1)
+                .reg(),
+        ),
+        (
+            "(cp %a %c) - no carries",
+            RegBuilder::new().a(0x2F).c(0x1F).reg(),
+            &[psy::arch::sm83::INSTR_CP_A_C.op_code],
+            RegBuilder::new()
+                .a(0x2F)
+                .c(0x1F)
+                .f_z(0)
+                .f_n(1)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
+        ),
+        (
+            "(cp %a %c) - zero result, no carries",
+            RegBuilder::new().a(0x40).c(0x40).reg(),
+            &[psy::arch::sm83::INSTR_CP_A_C.op_code],
+            RegBuilder::new()
+                .a(0x40)
+                .c(0x40)
+                .f_z(1)
+                .f_n(1)
+                .f_h(0)
+                .f_c(0)
+                .reg(),
         ),
     ];
 
