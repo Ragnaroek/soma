@@ -1660,6 +1660,24 @@ fn test_ret() -> Result<(), ExecErr> {
             0x68,
             0x01,
         ),
+        (
+            "(ret #z) with z is zero",
+            RegBuilder::new().pc(0).sp(0xFFFC).f_z(1).reg(),
+            [psy::arch::sm83::INSTR_RET_Z.op_code],
+            0xFFFE,
+            0x168,
+            0x68,
+            0x01,
+        ),
+        (
+            "(ret #nz) with z is not zero",
+            RegBuilder::new().pc(0).sp(0xFFFC).f_z(0).reg(),
+            [psy::arch::sm83::INSTR_RET_Z.op_code],
+            0xFFFC,
+            1,
+            0x68,
+            0x01,
+        ),
     ];
 
     for (exp, reg, mem, sp_after, pc_after, sp_low, sp_high) in cases {

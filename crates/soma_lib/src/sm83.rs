@@ -879,6 +879,15 @@ fn exec_ret_nz(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr
     }
 }
 
+fn exec_ret_z(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    if sm83.reg.get_flag(Z) != 0 {
+        exec_ret(sm83, mc)
+    } else {
+        sm83.inc_pc(1);
+        Ok(())
+    }
+}
+
 fn exec_rst_28(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     call_to_addr(sm83, mc, 0x28, 1)
 }
@@ -1226,7 +1235,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xC5*/ exec_push_bc,
     /*0xC6*/ exec_invalid,
     /*0xC7*/ exec_invalid,
-    /*0xC8*/ exec_invalid,
+    /*0xC8*/ exec_ret_z,
     /*0xC9*/ exec_ret,
     /*0xCA*/ exec_jp_if_z,
     /*0xCB*/ exec_prefix,
