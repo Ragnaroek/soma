@@ -355,7 +355,7 @@ impl SomaApp {
 
                             let viewport_max = (viewport_pos
                                 + (num_asm_rows * MAX_INSTRUCTION_BYTE_LENGTH))
-                                .min(rom.size());
+                                .min(u16::MAX as usize);
 
                             // disassemble the instruction the view revolves around into the cache
                             disassemble_pc(viewport_pos as u16, &dmg, &mut dis_cache, confirmed);
