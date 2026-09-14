@@ -47,7 +47,7 @@ impl IO {
         }
         let offset = (addr - 0xFF00) as usize;
         if offset >= self.mem_effect.len() {
-            return Err(ExecErr::GeneralError("IO read above 0xFFFF"));
+            return Err(ExecErr::GeneralError("IO read above 0xFFFE"));
         }
         let v = self.mem_effect[offset].value;
         Ok(v)

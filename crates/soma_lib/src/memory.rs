@@ -42,7 +42,7 @@ const RAM_END: u16 = 0xDFFF;
 const OAM_START: u16 = 0xFE00;
 const OAM_END: u16 = 0xFEFF;
 const IO_START: u16 = 0xFF00;
-const IO_END: u16 = 0xFFFF;
+const IO_END: u16 = 0xFFFE;
 
 impl MemoryController {
     pub fn new(io: IO, rom: ROM) -> MemoryController {
@@ -71,14 +71,14 @@ impl MemoryController {
             } else {
                 return Err(ExecErr::GeneralError("no ROM attached"));
             }
-        } else if addr >= IO_START && addr <= IO_END {
-            self.io.read(addr)
         } else if addr >= VRAM_START && addr <= VRAM_END {
             Ok(self.vram[(addr - VRAM_START) as usize])
         } else if addr >= RAM_START && addr <= RAM_END {
             Ok(self.ram[(addr - RAM_START) as usize])
         } else if addr >= OAM_START && addr <= OAM_END {
             Ok(self.oam[(addr - OAM_START) as usize])
+        } else if addr >= IO_START && addr <= IO_END {
+            self.io.read(addr)
         } else {
             return Err(ExecErr::GeneralError("mem read error"));
         }
