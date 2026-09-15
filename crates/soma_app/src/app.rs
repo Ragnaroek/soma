@@ -814,12 +814,19 @@ fn predict_disassemble_around_pc(
     cache: &mut HashMap<u16, DisassembleInstr>,
 ) {
     let mut pc = pc_min;
-    while pc <= pc_max {
+    while pc != u16::MAX && pc <= pc_max {
         let may_instr = cache.get(&pc);
         if let Some(instr) = may_instr {
-            pc += instr.instr.len() as u16;
+            pc = pc.saturating_add(instr.instr.len() as u16);
         } else {
-            let instr = psy::arch::sm83::decode(dmg.mc.read(pc).expect("instruction"));
+            let may_mem = dmg.mc.read(pc);
+            let instr = if let Ok(mem) = may_mem {
+                psy::arch::sm83::decode(mem)
+            } else {
+                // placeholder as for now. could also be that memory was tried to
+                // read that is not executable
+                &psy::arch::sm83::INSTR_INVALID
+            };
 
             // check that we do not "override" a confirmed instruction as this decoded
             // instruction might be a false positive one
@@ -854,7 +861,7 @@ fn predict_disassemble_around_pc(
                         instr,
                     },
                 );
-                pc += instr.len() as u16;
+                pc = pc.saturating_add(instr.len() as u16);
             }
         }
     }
