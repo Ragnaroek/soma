@@ -3,11 +3,12 @@ use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{collections::HashMap, sync::Arc};
 
 use egui::{Button, Color32, FontDefinitions, Frame, Grid, Pos2, Rect, ScrollArea, Stroke};
+use libsoma::memory::MemoryController;
 use psy::arch::sm83::{MAX_INSTRUCTION_BYTE_LENGTH, Sm83Instr};
 
 use libsoma::dmg::{self, DMG};
 use libsoma::rom::ROM;
-use libsoma::sm83;
+use libsoma::sm83::{self, ExecErr};
 use std::time::Instant;
 
 const REG_PANEL_WIDTH: f32 = 210.0;
@@ -726,9 +727,11 @@ fn render_instr(
         emulator.toggle_breakpoint(loc);
     }
 
+    let dmg = emulator.dmg_read_lock();
+
     let loc_u = loc as usize;
     let (instr_text, confirmed) = if let Some(instr) = may_instr {
-        ui.label(byte_text(loc_u, instr.instr.len(), rom));
+        ui.label(byte_text(loc, instr.instr.len(), &dmg.mc).unwrap());
 
         let text = instr
             .instr
@@ -739,7 +742,7 @@ fn render_instr(
             (text, instr.confirmed)
         }
     } else {
-        ui.label(byte_text(loc_u, 1, rom));
+        ui.label(byte_text(loc, 1, &dmg.mc).unwrap());
         ("???".to_string(), false)
     };
 
@@ -775,14 +778,19 @@ fn instr_in_range(
     result
 }
 
-fn byte_text(loc: usize, instr_len: usize, rom: &ROM) -> String {
+fn byte_text(loc: u16, instr_len: usize, mc: &MemoryController) -> Result<String, ExecErr> {
     let txt = match instr_len {
-        1 => format!("{:02X}      ", rom[loc]),
-        2 => format!("{:02X} {:02X}   ", rom[loc], rom[loc + 1]),
-        3 => format!("{:02X} {:02X} {:02X}", rom[loc], rom[loc + 1], rom[loc + 2]),
+        1 => format!("{:02X}      ", mc.read(loc)?),
+        2 => format!("{:02X} {:02X}   ", mc.read(loc)?, mc.read(loc + 1)?),
+        3 => format!(
+            "{:02X} {:02X} {:02X}",
+            mc.read(loc)?,
+            mc.read(loc + 1)?,
+            mc.read(loc + 2)?
+        ),
         0 | _ => "        ".to_string(),
     };
-    format!("{}           ", txt)
+    Ok(format!("{}           ", txt))
 }
 
 // make sure that the instruction at the current pc is disassembled
