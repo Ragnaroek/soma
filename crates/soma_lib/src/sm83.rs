@@ -685,6 +685,17 @@ fn exec_inc_l(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> 
     Ok(())
 }
 
+fn exec_inc_e(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
+    let (e_inc, _) = sm83.reg.e.overflowing_add(1);
+    let half_carry = half_carry_inc(sm83.reg.e);
+    sm83.reg.e = e_inc;
+    sm83.reg.set_flag(Z, (e_inc == 0) as u8);
+    sm83.reg.set_flag(N, 0);
+    sm83.reg.set_flag(H, half_carry);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_inc_de(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
     let de = sm83.reg.de();
     let (de_inc, _) = de.overflowing_add(1);
@@ -998,7 +1009,6 @@ fn exec_prefix_invalid(_sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(
 }
 
 // SWAP
-
 fn exec_prefix_swap_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     let h = sm83.reg.a & 0xF0;
     let l = sm83.reg.a & 0x0F;
@@ -1063,7 +1073,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x19*/ exec_add_hl_de,
     /*0x1A*/ exec_ld_to_a_from_deref_de,
     /*0x1B*/ exec_invalid,
-    /*0x1C*/ exec_invalid,
+    /*0x1C*/ exec_inc_e,
     /*0x1D*/ exec_invalid,
     /*0x1E*/ exec_invalid,
     /*0x1F*/ exec_invalid,
