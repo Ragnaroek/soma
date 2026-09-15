@@ -3,11 +3,12 @@ use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{collections::HashMap, sync::Arc};
 
 use egui::{Button, Color32, FontDefinitions, Frame, Grid, Pos2, Rect, ScrollArea, Stroke};
+use libsoma::memory::MemoryController;
 use psy::arch::sm83::{MAX_INSTRUCTION_BYTE_LENGTH, Sm83Instr};
 
 use libsoma::dmg::{self, DMG};
 use libsoma::rom::ROM;
-use libsoma::sm83;
+use libsoma::sm83::{self, ExecErr};
 use std::time::Instant;
 
 const REG_PANEL_WIDTH: f32 = 210.0;
@@ -105,10 +106,11 @@ enum RegValueDisplay {
     Binary,
 }
 
-#[derive(Copy, Clone)]
+//#[derive(Copy, Clone)]
 pub struct DisassembleInstr {
     pub confirmed: bool,
     pub instr: &'static Sm83Instr,
+    pub raw_bytes: Vec<u8>,
 }
 
 struct JumpToDialogState {
@@ -358,7 +360,12 @@ impl SomaApp {
                                 .min(u16::MAX as usize);
 
                             // disassemble the instruction the view revolves around into the cache
-                            disassemble_pc(viewport_pos as u16, &dmg, &mut dis_cache, confirmed);
+                            decode_addr_and_cache(
+                                viewport_pos as u16,
+                                &dmg,
+                                &mut dis_cache,
+                                confirmed,
+                            );
                             predict_disassemble_around_pc(
                                 viewport_min as u16,
                                 viewport_max as u16,
@@ -728,7 +735,7 @@ fn render_instr(
 
     let loc_u = loc as usize;
     let (instr_text, confirmed) = if let Some(instr) = may_instr {
-        ui.label(byte_text(loc_u, instr.instr.len(), rom));
+        ui.label(byte_text(instr).unwrap());
 
         let text = instr
             .instr
@@ -739,7 +746,7 @@ fn render_instr(
             (text, instr.confirmed)
         }
     } else {
-        ui.label(byte_text(loc_u, 1, rom));
+        ui.label(format!("{:02X}      ", loc));
         ("???".to_string(), false)
     };
 
@@ -775,19 +782,22 @@ fn instr_in_range(
     result
 }
 
-fn byte_text(loc: usize, instr_len: usize, rom: &ROM) -> String {
-    let txt = match instr_len {
-        1 => format!("{:02X}      ", rom[loc]),
-        2 => format!("{:02X} {:02X}   ", rom[loc], rom[loc + 1]),
-        3 => format!("{:02X} {:02X} {:02X}", rom[loc], rom[loc + 1], rom[loc + 2]),
+fn byte_text(instr: &DisassembleInstr) -> Result<String, ExecErr> {
+    let txt = match instr.instr.len() {
+        1 => format!("{:02X}      ", instr.raw_bytes[0]),
+        2 => format!("{:02X} {:02X}   ", instr.raw_bytes[0], instr.raw_bytes[1]),
+        3 => format!(
+            "{:02X} {:02X} {:02X}",
+            instr.raw_bytes[0], instr.raw_bytes[1], instr.raw_bytes[2]
+        ),
         0 | _ => "        ".to_string(),
     };
-    format!("{}           ", txt)
+    Ok(format!("{}           ", txt))
 }
 
 // make sure that the instruction at the current pc is disassembled
 // and in the disassembly cache
-fn disassemble_pc(
+fn decode_addr_and_cache(
     pc: u16,
     dmg: &DMG<Instant>,
     cache: &mut HashMap<u16, DisassembleInstr>,
@@ -800,10 +810,29 @@ fn disassemble_pc(
     {
         // do nothing and keep the confirmed instruction as is
     } else {
-        let instr = psy::arch::sm83::decode(dmg.mc.read(pc).expect("instruction"));
-        let dis = DisassembleInstr { confirmed, instr };
-        cache.insert(pc, dis.clone());
+        let dis = decode_addr(pc, dmg, confirmed);
+        cache.insert(pc, dis);
     }
+}
+
+fn decode_addr(pc: u16, dmg: &DMG<Instant>, confirmed: bool) -> DisassembleInstr {
+    let op_code = dmg.mc.read(pc).expect("op_code");
+    let instr = psy::arch::sm83::decode(op_code);
+    let raw_bytes = instr_raw_bytes(pc, instr, dmg);
+    DisassembleInstr {
+        confirmed,
+        instr,
+        raw_bytes,
+    }
+}
+
+pub fn instr_raw_bytes(addr: u16, instr: &'static Sm83Instr, dmg: &DMG<Instant>) -> Vec<u8> {
+    let mut raw_bytes = Vec::with_capacity(1 + instr.arg_bytes);
+    raw_bytes.push(instr.op_code);
+    for i in 0..instr.arg_bytes {
+        raw_bytes.push(dmg.mc.read(addr + i as u16).expect("arg_bytes"))
+    }
+    raw_bytes
 }
 
 // pc must be in the pc_min, pc_max range
@@ -819,19 +848,12 @@ fn predict_disassemble_around_pc(
         if let Some(instr) = may_instr {
             pc = pc.saturating_add(instr.instr.len() as u16);
         } else {
-            let may_mem = dmg.mc.read(pc);
-            let instr = if let Ok(mem) = may_mem {
-                psy::arch::sm83::decode(mem)
-            } else {
-                // placeholder as for now. could also be that memory was tried to
-                // read that is not executable
-                &psy::arch::sm83::INSTR_INVALID
-            };
+            let decode = decode_addr(pc, dmg, false);
 
             // check that we do not "override" a confirmed instruction as this decoded
             // instruction might be a false positive one
             let mut overrides_confirmed = (false, 0);
-            for i in 1..instr.len() {
+            for i in 1..decode.instr.len() {
                 let may_instr = cache.get(&(pc + i as u16));
                 if let Some(instr) = may_instr
                     && instr.confirmed
@@ -843,26 +865,22 @@ fn predict_disassemble_around_pc(
             if overrides_confirmed.0 {
                 for i in 0..overrides_confirmed.1 {
                     // add invalid instructions, as something is wrong with the decode state
-                    cache.insert(
-                        pc + i as u16,
-                        DisassembleInstr {
-                            confirmed: false,
-                            instr: &psy::arch::sm83::INSTR_INVALID,
-                        },
-                    );
-                    // resync pc with the confirmed instrution and continue from there
+                    cache.insert(pc.saturating_add(i) as u16, invalid_disassemble());
+                    // resync pc with the confirmed instruction and continue from there
                     pc = overrides_confirmed.1
                 }
             } else {
-                cache.insert(
-                    pc,
-                    DisassembleInstr {
-                        confirmed: false,
-                        instr,
-                    },
-                );
-                pc = pc.saturating_add(instr.len() as u16);
+                pc = pc.saturating_add(decode.instr.len() as u16);
+                cache.insert(pc, decode);
             }
         }
+    }
+}
+
+fn invalid_disassemble() -> DisassembleInstr {
+    DisassembleInstr {
+        confirmed: false,
+        instr: &psy::arch::sm83::INSTR_INVALID,
+        raw_bytes: vec![psy::arch::sm83::INSTR_INVALID.op_code],
     }
 }
