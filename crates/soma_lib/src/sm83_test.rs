@@ -1030,7 +1030,41 @@ fn test_inc() -> Result<(), ExecErr> {
 
 #[test]
 fn test_dec() -> Result<(), ExecErr> {
-    let cases: [(&str, IO, Register, &[u8], Register, &[(u16, u8)]); 18] = [
+    let cases: [(&str, IO, Register, &[u8], Register, &[(u16, u8)]); 22] = [
+        // (dec %a)
+        (
+            "(dec %a) with 1 %a",
+            IO::init(),
+            RegBuilder::new().a(0x01).f_z(0).f_n(0).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_A.op_code],
+            RegBuilder::new().a(0x00).f_z(1).f_n(1).f_h(0).reg(),
+            &[],
+        ),
+        (
+            "(dec %a) with 0 %a",
+            IO::init(),
+            RegBuilder::new().a(0x0).f_z(1).f_n(0).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_A.op_code],
+            RegBuilder::new().a(0xFF).f_z(0).f_n(1).f_h(1).reg(),
+            &[],
+        ),
+        (
+            "(dec %a) no half carry",
+            IO::init(),
+            RegBuilder::new().a(0x15).f_z(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_DEC_A.op_code],
+            RegBuilder::new().a(0x14).f_z(0).f_n(1).f_h(0).reg(),
+            &[],
+        ),
+        (
+            "(dec %a) half carry",
+            IO::init(),
+            RegBuilder::new().a(0x10).f_z(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_DEC_A.op_code],
+            RegBuilder::new().a(0x0F).f_z(0).f_n(1).f_h(1).reg(),
+            &[],
+        ),
+        // (dec %b)
         (
             "(dec %b) with 1 %b",
             IO::init(),
