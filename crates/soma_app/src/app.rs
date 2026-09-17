@@ -828,8 +828,8 @@ fn decode_addr(pc: u16, dmg: &DMG<Instant>, confirmed: bool) -> DisassembleInstr
 
 pub fn instr_raw_bytes(addr: u16, instr: &'static Sm83Instr, dmg: &DMG<Instant>) -> Vec<u8> {
     let mut raw_bytes = Vec::with_capacity(1 + instr.arg_bytes);
-    raw_bytes.push(instr.op_code);
-    for i in 0..instr.arg_bytes {
+    raw_bytes.push(dmg.mc.read(addr).expect("op_code"));
+    for i in 1..=instr.arg_bytes {
         raw_bytes.push(dmg.mc.read(addr + i as u16).expect("arg_bytes"))
     }
     raw_bytes
@@ -870,8 +870,9 @@ fn predict_disassemble_around_pc(
                     pc = overrides_confirmed.1
                 }
             } else {
-                pc = pc.saturating_add(decode.instr.len() as u16);
+                let inst_len = decode.instr.len();
                 cache.insert(pc, decode);
+                pc = pc.saturating_add(inst_len as u16);
             }
         }
     }
