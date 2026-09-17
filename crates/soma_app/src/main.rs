@@ -126,6 +126,10 @@ fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<Frame
             let mut dis_cache = emulation.disassemble_cache_write_lock();
             let dmg = emulation.dmg_read_lock();
             let raw_bytes = instr_raw_bytes(step_result.pc, step_result.instr, &dmg);
+            println!(
+                "pc = 0x{:x} instr = {:?}, raw_bytes = {:?}",
+                step_result.pc, step_result.instr, raw_bytes
+            );
             dis_cache.insert(
                 step_result.pc,
                 DisassembleInstr {

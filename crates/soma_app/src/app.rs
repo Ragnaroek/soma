@@ -366,6 +366,7 @@ impl SomaApp {
                                 &mut dis_cache,
                                 confirmed,
                             );
+                            println!("viewport_pos = 0x{:x}", viewport_pos);
                             predict_disassemble_around_pc(
                                 viewport_min as u16,
                                 viewport_max as u16,
@@ -803,15 +804,44 @@ fn decode_addr_and_cache(
     cache: &mut HashMap<u16, DisassembleInstr>,
     confirmed: bool,
 ) {
+    println!("decode_addr = 0x{:x}, confirmed = {}", pc, confirmed);
     let may_pc_instr = cache.get(&pc);
+    println!("\t in cache = {}", may_pc_instr.is_some());
+    if let Some(instr) = may_pc_instr {
+        println!(
+            "\t instr = {:?}, confirmed = {}",
+            instr.instr, instr.confirmed
+        );
+    }
 
     if let Some(instr) = may_pc_instr
         && instr.confirmed
     {
+        if pc == 0x20c {
+            println!("!! confirmed instruction");
+        }
         // do nothing and keep the confirmed instruction as is
     } else {
+        /*if pc == 0x20c {
+            println!(
+                "!! unconfirmed instruction, instr in cache is some = {} ",
+                may_pc_instr.is_some()
+            );
+        }*/
         let dis = decode_addr(pc, dmg, confirmed);
+        println!(
+            "\t decode result = {:?}, confirmed = {}, pc = {:x}",
+            dis.instr, dis.confirmed, pc
+        );
         cache.insert(pc, dis);
+        let may_pc_instr2 = cache.get(&pc);
+        println!("\t now in cache = {}", may_pc_instr2.is_some());
+        if let Some(instr) = may_pc_instr2 {
+            println!(
+                "\t instr = {:?}, confirmed = {}",
+                instr.instr, instr.confirmed
+            );
+        }
     }
 }
 
@@ -828,8 +858,8 @@ fn decode_addr(pc: u16, dmg: &DMG<Instant>, confirmed: bool) -> DisassembleInstr
 
 pub fn instr_raw_bytes(addr: u16, instr: &'static Sm83Instr, dmg: &DMG<Instant>) -> Vec<u8> {
     let mut raw_bytes = Vec::with_capacity(1 + instr.arg_bytes);
-    raw_bytes.push(instr.op_code);
-    for i in 0..instr.arg_bytes {
+    raw_bytes.push(dmg.mc.read(addr).expect("op_code"));
+    for i in 1..=instr.arg_bytes {
         raw_bytes.push(dmg.mc.read(addr + i as u16).expect("arg_bytes"))
     }
     raw_bytes
@@ -842,6 +872,7 @@ fn predict_disassemble_around_pc(
     dmg: &DMG<Instant>,
     cache: &mut HashMap<u16, DisassembleInstr>,
 ) {
+    println!("predict_disassmebled {}, {}", pc_min, pc_max);
     let mut pc = pc_min;
     while pc != u16::MAX && pc <= pc_max {
         let may_instr = cache.get(&pc);
@@ -849,6 +880,10 @@ fn predict_disassemble_around_pc(
             pc = pc.saturating_add(instr.instr.len() as u16);
         } else {
             let decode = decode_addr(pc, dmg, false);
+
+            if pc == 0x20c {
+                println!("predict decode = {:?}", decode.instr)
+            }
 
             // check that we do not "override" a confirmed instruction as this decoded
             // instruction might be a false positive one
