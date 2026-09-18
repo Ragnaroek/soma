@@ -895,126 +895,187 @@ fn test_add() -> Result<(), ExecErr> {
 
 #[test]
 fn test_inc() -> Result<(), ExecErr> {
-    let cases = [
+    let cases: [(&str, IO, Register, &[u8], Register, &[(u16, u8)]); 21] = [
         // (inc %a)
         (
             "(inc %a), zero result",
+            IO::init(),
             RegBuilder::new().a(0xFF).f_z(0).f_n(1).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_INC_A.op_code],
             RegBuilder::new().a(0x00).f_z(1).f_n(0).f_h(1).reg(),
+            &[],
         ),
         (
             "(inc %a), non-zero result",
+            IO::init(),
             RegBuilder::new().a(0x00).f_z(1).f_n(1).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_INC_A.op_code],
             RegBuilder::new().a(0x01).f_z(0).f_n(0).f_h(0).reg(),
+            &[],
         ),
         (
             "(inc %a), half-carry",
+            IO::init(),
             RegBuilder::new().a(0x0F).f_z(1).f_n(1).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_INC_A.op_code],
             RegBuilder::new().a(0x10).f_z(0).f_n(0).f_h(1).reg(),
+            &[],
         ),
         // (inc %c)
         (
             "(inc %c), zero result",
+            IO::init(),
             RegBuilder::new().c(0xFF).f_z(0).f_n(1).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_INC_C.op_code],
             RegBuilder::new().c(0x00).f_z(1).f_n(0).f_h(1).reg(),
+            &[],
         ),
         (
             "(inc %c), non-zero result",
+            IO::init(),
             RegBuilder::new().c(0x00).f_z(1).f_n(1).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_INC_C.op_code],
             RegBuilder::new().c(0x01).f_z(0).f_n(0).f_h(0).reg(),
+            &[],
         ),
         (
             "(inc %c), half-carry",
+            IO::init(),
             RegBuilder::new().c(0x0F).f_z(1).f_n(1).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_INC_C.op_code],
             RegBuilder::new().c(0x10).f_z(0).f_n(0).f_h(1).reg(),
+            &[],
         ),
         //(inc %l)
         (
             "(inc %l), zero result",
+            IO::init(),
             RegBuilder::new().l(0xFF).f_z(0).f_n(1).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_INC_L.op_code],
             RegBuilder::new().l(0x00).f_z(1).f_n(0).f_h(1).reg(),
+            &[],
         ),
         (
             "(inc %l), non-zero result",
+            IO::init(),
             RegBuilder::new().l(0x00).f_z(1).f_n(1).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_INC_L.op_code],
             RegBuilder::new().l(0x01).f_z(0).f_n(0).f_h(0).reg(),
+            &[],
         ),
         (
             "(inc %l), half-carry",
+            IO::init(),
             RegBuilder::new().l(0x0F).f_z(1).f_n(1).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_INC_L.op_code],
             RegBuilder::new().l(0x10).f_z(0).f_n(0).f_h(1).reg(),
+            &[],
         ),
         //(inc %e)
         (
             "(inc %e), zero result",
+            IO::init(),
             RegBuilder::new().e(0xFF).f_z(0).f_n(1).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_INC_E.op_code],
             RegBuilder::new().e(0x00).f_z(1).f_n(0).f_h(1).reg(),
+            &[],
         ),
         (
             "(inc %e), non-zero result",
+            IO::init(),
             RegBuilder::new().e(0x00).f_z(1).f_n(1).f_h(1).reg(),
             &[psy::arch::sm83::INSTR_INC_E.op_code],
             RegBuilder::new().e(0x01).f_z(0).f_n(0).f_h(0).reg(),
+            &[],
         ),
         (
             "(inc %e), half-carry",
+            IO::init(),
             RegBuilder::new().e(0x0F).f_z(1).f_n(1).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_INC_E.op_code],
             RegBuilder::new().e(0x10).f_z(0).f_n(0).f_h(1).reg(),
+            &[],
         ),
         //(inc %de)
         (
             "(inc %de) with zero %de",
+            IO::init(),
             RegBuilder::new().de(0x00).reg(),
             &[psy::arch::sm83::INSTR_INC_DE.op_code],
             RegBuilder::new().de(0x01).reg(),
+            &[],
         ),
         (
             "(inc %de) with non-zero %de",
+            IO::init(),
             RegBuilder::new().de(0x666).reg(),
             &[psy::arch::sm83::INSTR_INC_DE.op_code],
             RegBuilder::new().de(0x667).reg(),
+            &[],
         ),
         (
             "(inc %de) with overflow",
+            IO::init(),
             RegBuilder::new().de(0xFFFF).reg(),
             &[psy::arch::sm83::INSTR_INC_DE.op_code],
             RegBuilder::new().de(0x0).reg(),
+            &[],
         ),
         //(inc %hl)
         (
             "(inc %hl) with zero %hl",
+            IO::init(),
             RegBuilder::new().hl(0x00).reg(),
             &[psy::arch::sm83::INSTR_INC_HL.op_code],
             RegBuilder::new().hl(0x01).reg(),
+            &[],
         ),
         (
             "(inc %hl) with non-zero %hl",
+            IO::init(),
             RegBuilder::new().hl(0x666).reg(),
             &[psy::arch::sm83::INSTR_INC_HL.op_code],
             RegBuilder::new().hl(0x667).reg(),
+            &[],
         ),
         (
             "(inc %hl) with overflow",
+            IO::init(),
             RegBuilder::new().hl(0xFFFF).reg(),
             &[psy::arch::sm83::INSTR_INC_HL.op_code],
             RegBuilder::new().hl(0x0).reg(),
+            &[],
+        ),
+        //(inc (%hl))
+        (
+            "(inc (%hl)), zero result",
+            IO::init_with_value(0xFF80, 0xFF)?,
+            RegBuilder::new().hl(0xFF80).f_z(0).f_n(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_INC_DEREF_HL.op_code],
+            RegBuilder::new().hl(0xFF80).f_z(1).f_n(0).f_h(1).reg(),
+            &[(0xFF80, 0)],
+        ),
+        (
+            "(inc (%hl)), non-zero result",
+            IO::init_with_value(0xFF80, 0x00)?,
+            RegBuilder::new().hl(0xFF80).f_z(1).f_n(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_INC_DEREF_HL.op_code],
+            RegBuilder::new().hl(0xFF80).f_z(0).f_n(0).f_h(0).reg(),
+            &[(0xFF80, 1)],
+        ),
+        (
+            "(inc (%hl)), half-carry",
+            IO::init_with_value(0xFF80, 0x0F)?,
+            RegBuilder::new().hl(0xFF80).f_z(1).f_n(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_INC_DEREF_HL.op_code],
+            RegBuilder::new().hl(0xFF80).f_z(0).f_n(0).f_h(1).reg(),
+            &[(0xFF80, 0x10)],
         ),
     ];
 
-    for (exp, reg_init, mem, reg_after) in cases {
+    for (exp, io, reg_init, mem, reg_after, mem_checks) in cases {
         let rom = ROM::new_copy_from_slice(mem);
-        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        let (sm83, mc) = exec(io, reg_init, rom)?;
         assert_eq!(
             sm83.pc(),
             1,
@@ -1024,6 +1085,8 @@ fn test_inc() -> Result<(), ExecErr> {
             sm83.pc()
         );
         assert_equal_v_regs(&sm83.reg, &reg_after, exp);
+
+        check_mem(mem_checks, &mc)?;
     }
     Ok(())
 }
