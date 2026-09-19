@@ -221,6 +221,11 @@ impl RegBuilder {
         self.reg.sp = v;
         self
     }
+
+    pub fn ime(mut self, v: bool) -> RegBuilder {
+        self.reg.ime = v;
+        self
+    }
 }
 
 impl SM83 {
@@ -923,6 +928,12 @@ fn exec_ret_z(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr>
     }
 }
 
+fn exec_reti(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    exec_ret(sm83, mc)?;
+    sm83.reg.ime = true;
+    Ok(())
+}
+
 fn exec_rst_28(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     call_to_addr(sm83, mc, 0x28, 1)
 }
@@ -1286,7 +1297,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xD6*/ exec_invalid,
     /*0xD7*/ exec_invalid,
     /*0xD8*/ exec_invalid,
-    /*0xD9*/ exec_invalid,
+    /*0xD9*/ exec_reti,
     /*0xDA*/ exec_invalid,
     /*0xDB*/ exec_invalid,
     /*0xDC*/ exec_invalid,

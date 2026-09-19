@@ -1751,52 +1751,67 @@ fn test_ret() -> Result<(), ExecErr> {
     let cases = [
         (
             "(ret)",
-            RegBuilder::new().pc(0).sp(0xFFFC).reg(),
+            RegBuilder::new().ime(false).pc(0).sp(0xFFFC).reg(),
             [psy::arch::sm83::INSTR_RET.op_code],
             0xFFFE,
             0x168,
             0x68,
             0x01,
+            false,
         ),
         (
             "(ret #nz) with z is zero",
-            RegBuilder::new().pc(0).sp(0xFFFC).f_z(1).reg(),
+            RegBuilder::new().ime(false).pc(0).sp(0xFFFC).f_z(1).reg(),
             [psy::arch::sm83::INSTR_RET_NZ.op_code],
             0xFFFC, // don't return and stay with the current stack ptr value
             1,
             0x68, // stack value does not matter
             0x01,
+            false,
         ),
         (
             "(ret #nz) with z is not zero",
-            RegBuilder::new().pc(0).sp(0xFFFC).f_z(0).reg(),
+            RegBuilder::new().ime(false).pc(0).sp(0xFFFC).f_z(0).reg(),
             [psy::arch::sm83::INSTR_RET_NZ.op_code],
             0xFFFE,
             0x168,
             0x68,
             0x01,
+            false,
         ),
         (
             "(ret #z) with z is zero",
-            RegBuilder::new().pc(0).sp(0xFFFC).f_z(1).reg(),
+            RegBuilder::new().ime(false).pc(0).sp(0xFFFC).f_z(1).reg(),
             [psy::arch::sm83::INSTR_RET_Z.op_code],
             0xFFFE,
             0x168,
             0x68,
             0x01,
+            false,
         ),
         (
             "(ret #nz) with z is not zero",
-            RegBuilder::new().pc(0).sp(0xFFFC).f_z(0).reg(),
+            RegBuilder::new().ime(false).pc(0).sp(0xFFFC).f_z(0).reg(),
             [psy::arch::sm83::INSTR_RET_Z.op_code],
             0xFFFC,
             1,
             0x68,
             0x01,
+            false,
+        ),
+        (
+            "(reti)",
+            RegBuilder::new().ime(false).pc(0).sp(0xFFFC).reg(),
+            [psy::arch::sm83::INSTR_RETI.op_code],
+            0xFFFE,
+            0x168,
+            0x68,
+            0x01,
+            true,
         ),
     ];
 
-    for (exp, reg, mem, sp_after, pc_after, sp_low, sp_high) in cases {
+    for (exp, reg, mem, sp_after, pc_after, sp_low, sp_high, ime_after) in cases {
         let rom = ROM::new_copy_from_slice(&mem);
         let mut mc = MemoryController::new(IO::init(), rom);
         let sp_start = reg.sp;
@@ -1815,6 +1830,11 @@ fn test_ret() -> Result<(), ExecErr> {
             exp,
             pc_after,
             sm83.pc()
+        );
+        assert_eq!(
+            sm83.reg.ime, ime_after,
+            "{}, want ime {}, got {}",
+            exp, ime_after, sm83.reg.ime
         );
     }
     Ok(())
