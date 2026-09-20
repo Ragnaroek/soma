@@ -1417,6 +1417,19 @@ fn test_or() -> Result<(), ExecErr> {
                 .f_c(0)
                 .reg(),
         ),
+        // (or %a %a)
+        (
+            "(or %a %a) zero result",
+            RegBuilder::new().a(0x00).f_z(0).f_n(1).f_h(1).f_c(1).reg(),
+            &[psy::arch::sm83::INSTR_OR_A_A.op_code],
+            RegBuilder::new().a(0x00).f_z(1).f_n(0).f_h(0).f_c(0).reg(),
+        ),
+        (
+            "(or %a %a) non-zero result",
+            RegBuilder::new().a(0x66).f_z(1).f_n(1).f_h(1).f_c(1).reg(),
+            &[psy::arch::sm83::INSTR_OR_A_A.op_code],
+            RegBuilder::new().a(0x66).f_z(0).f_n(0).f_h(0).f_c(0).reg(),
+        ),
     ];
 
     for (exp, reg_init, mem, reg_after) in cases {
@@ -2022,6 +2035,59 @@ fn test_rst() -> Result<(), ExecErr> {
             "got 0x{:x}, want 0x01",
             mc.read(0xFFFD)?
         );
+    }
+    Ok(())
+}
+
+#[test]
+fn test_daa() -> Result<(), ExecErr> {
+    // test cases are based on the wonderful blog post about DAA: https://blog.ollien.com/posts/gb-daa/
+    let cases = [
+        (
+            "(daa) - no adjust, after add",
+            RegBuilder::new().a(0x77).f_z(1).f_n(0).f_h(0).f_c(0).reg(),
+            RegBuilder::new().a(0x77).f_z(0).f_n(0).f_h(0).f_c(0).reg(),
+        ),
+        (
+            "(daa) - no adjust, after sub",
+            RegBuilder::new().a(0x77).f_z(1).f_n(1).f_h(0).f_c(0).reg(),
+            RegBuilder::new().a(0x77).f_z(0).f_n(1).f_h(0).f_c(0).reg(),
+        ),
+        (
+            "(daa) - adjust 1st nibble, after add",
+            RegBuilder::new().a(0x6B).f_z(1).f_n(0).f_h(1).f_c(0).reg(),
+            RegBuilder::new().a(0x71).f_z(0).f_n(0).f_h(0).f_c(0).reg(),
+        ),
+        (
+            "(daa) - adjust 1st nibble, after sub",
+            RegBuilder::new().a(0x0D).f_z(1).f_n(1).f_h(1).f_c(0).reg(),
+            RegBuilder::new().a(0x07).f_z(0).f_n(1).f_h(0).f_c(0).reg(),
+        ),
+        (
+            "(daa) - adjust 2nd nibble, after add",
+            RegBuilder::new().a(0xC4).f_z(1).f_n(0).f_h(0).f_c(1).reg(),
+            RegBuilder::new().a(0x24).f_z(0).f_n(0).f_h(0).f_c(1).reg(),
+        ),
+        (
+            "(daa) - adjust 2nd nibble, after sub",
+            RegBuilder::new().a(0xE4).f_z(1).f_n(1).f_h(0).f_c(1).reg(),
+            RegBuilder::new().a(0x84).f_z(0).f_n(1).f_h(0).f_c(1).reg(),
+        ),
+    ];
+
+    for (exp, reg_init, reg_after) in cases {
+        let mem = &[psy::arch::sm83::INSTR_DAA.op_code];
+        let rom = ROM::new_copy_from_slice(mem);
+        let (sm83, _) = exec(IO::init(), reg_init, rom)?;
+        assert_eq!(
+            sm83.pc(),
+            1,
+            "{}, want pc 0x{:x}, got 0x{:x}",
+            exp,
+            1,
+            sm83.pc()
+        );
+        assert_equal_v_regs(&sm83.reg, &reg_after, exp);
     }
     Ok(())
 }

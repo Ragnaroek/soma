@@ -791,6 +791,15 @@ fn exec_dec_deref_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), E
     Ok(())
 }
 
+fn exec_or_a_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    sm83.reg.set_flag(Z, (sm83.reg.a == 0) as u8);
+    sm83.reg.set_flag(N, 0);
+    sm83.reg.set_flag(H, 0);
+    sm83.reg.set_flag(C, 0);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_or_a_b(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
     sm83.reg.a = sm83.reg.a | sm83.reg.b;
     sm83.reg.set_flag(Z, (sm83.reg.a == 0) as u8);
@@ -1032,6 +1041,36 @@ fn exec_push_hl(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecEr
     Ok(())
 }
 
+fn exec_daa(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let add = sm83.reg.get_flag(N) == 0;
+    let c = sm83.reg.get_flag(C) != 0;
+    let h = sm83.reg.get_flag(H) != 0;
+
+    if add {
+        if c || sm83.reg.a > 0x99 {
+            (sm83.reg.a, _) = sm83.reg.a.overflowing_add(0x60);
+            sm83.reg.set_flag(C, 1);
+        }
+        if h || (sm83.reg.a & 0x0F) > 0x09 {
+            (sm83.reg.a, _) = sm83.reg.a.overflowing_add(0x06);
+        }
+    } else {
+        //sub
+        if c {
+            (sm83.reg.a, _) = sm83.reg.a.overflowing_sub(0x60);
+        }
+        if h {
+            (sm83.reg.a, _) = sm83.reg.a.overflowing_sub(0x06);
+        }
+    }
+
+    sm83.reg.set_flag(Z, (sm83.reg.a == 0) as u8);
+    sm83.reg.set_flag(H, 0);
+    // N untouched and C set already above
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_prefix(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let op_code = mc.read(sm83.pc() + 1)?;
     EXEC_PREFIX_TABLE[op_code as usize](sm83, mc)?;
@@ -1119,7 +1158,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x24*/ exec_invalid,
     /*0x25*/ exec_dec_h,
     /*0x26*/ exec_ld_to_h_from_immediate,
-    /*0x27*/ exec_invalid,
+    /*0x27*/ exec_daa,
     /*0x28*/ exec_jr_if_z,
     /*0x29*/ exec_invalid,
     /*0x2A*/ exec_ld_to_a_from_deref_hl_inc,
@@ -1263,7 +1302,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0xB4*/ exec_invalid,
     /*0xB5*/ exec_invalid,
     /*0xB6*/ exec_invalid,
-    /*0xB7*/ exec_invalid,
+    /*0xB7*/ exec_or_a_a,
     /*0xB8*/ exec_invalid,
     /*0xB9*/ exec_cp_a_c,
     /*0xBA*/ exec_invalid,
