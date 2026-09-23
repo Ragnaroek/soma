@@ -102,6 +102,7 @@ fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<Frame
             let step_control = emulation.step_control();
             if let StepControl::Halt = step_control {
                 thread::sleep(Duration::from_millis(30));
+                // TODO update screen in the halt loop periodically!
                 continue;
             }
             let pc = { emulation.dmg_read_lock().sm83.pc() };
@@ -122,9 +123,12 @@ fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<Frame
             r
         };
         if let Ok(step_result) = r {
+            //println!("### fb_refresh = {}", step_result.fb_refresh);
+
             // record the instruction in the disassemble cache
             let mut dis_cache = emulation.disassemble_cache_write_lock();
             let dmg = emulation.dmg_read_lock();
+            //println!("### 0xFF40 = {:x}", dmg.mc.read(0xFF40).unwrap());
             let raw_bytes = instr_raw_bytes(step_result.pc, step_result.instr, &dmg);
             dis_cache.insert(
                 step_result.pc,
@@ -141,7 +145,9 @@ fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<Frame
                 ));
             }
 
-            if step_result.fb_refresh {
+            println!("### step_control = {:?}", emulation.step_control());
+
+            if step_result.fb_refresh || emulation.step_control() == StepControl::Halt {
                 // update framebuffer
                 let mut fb = frame_buffer_lock.write().unwrap();
                 let dmg = emulation.dmg_read_lock();

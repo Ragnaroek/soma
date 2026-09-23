@@ -90,10 +90,11 @@ impl<T> DMG<T> {
         self.mc.write(0xFF44, h_line)?;
 
         if h_line == 144 {
-            vblank_interrupt(&mut self.sm83, &mut self.mc)?;
+            //vblank_interrupt(&mut self.sm83, &mut self.mc)?;
         }
 
-        let fb_refresh = if (now - self.last_refresh_at) > 14.0 {
+        let in_vblank = h_line >= 144;
+        let fb_refresh = if !in_vblank && (now - self.last_refresh_at) > 14.0 {
             self.last_refresh_at = now;
             true
         } else {
@@ -112,6 +113,8 @@ impl<T> DMG<T> {
     /// framebuffer in RGB format.
     /// The size needs to be at least 20 x 18 x 64 x 3 bytes.
     pub fn fb_rgb(&self, fb: &mut [u8]) -> Result<(), ExecErr> {
+        (self.debug)("##offset", self.tile_start_offset()?);
+        (self.debug)("##pc", self.sm83.reg.pc);
         // TODO window sliding. Currently the windows from tile 0 to 20 and 18 is fixed rendered
         for y in 0..18 {
             for x in 0..20 {
@@ -179,6 +182,7 @@ impl<T> DMG<T> {
 
     fn tile_start_offset(&self) -> Result<u16, ExecErr> {
         let lcdc = self.mc.read(0xFF40)?;
+        //(self.debug)("lcdc", lcdc as u16);
         if (lcdc & (1 << 4)) != 0 {
             Ok(0x8000)
         } else {
