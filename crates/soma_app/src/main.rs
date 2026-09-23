@@ -102,6 +102,7 @@ fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<Frame
             let step_control = emulation.step_control();
             if let StepControl::Halt = step_control {
                 thread::sleep(Duration::from_millis(30));
+                update_framebuffer(&emulation, &frame_buffer_lock);
                 continue;
             }
             let pc = { emulation.dmg_read_lock().sm83.pc() };
@@ -142,16 +143,19 @@ fn emulation_loop(emulation: Arc<Emulation>, frame_buffer_lock: Arc<RwLock<Frame
             }
 
             if step_result.fb_refresh {
-                // update framebuffer
-                let mut fb = frame_buffer_lock.write().unwrap();
-                let dmg = emulation.dmg_read_lock();
-                dmg.fb_rgb(&mut fb.buffer).expect("fb update");
-                fb.needs_update = true;
+                update_framebuffer(&emulation, &frame_buffer_lock);
             }
         } else {
             println!("ERR: {:?}", r.err().unwrap());
         }
     }
+}
+
+fn update_framebuffer(emulation: &Arc<Emulation>, frame_buffer_lock: &Arc<RwLock<FrameBuffer>>) {
+    let mut fb = frame_buffer_lock.write().unwrap();
+    let dmg = emulation.dmg_read_lock();
+    dmg.fb_rgb(&mut fb.buffer).expect("fb update");
+    fb.needs_update = true;
 }
 
 fn std_now(ref_time: &Instant) -> f64 {

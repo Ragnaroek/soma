@@ -93,7 +93,8 @@ impl<T> DMG<T> {
             vblank_interrupt(&mut self.sm83, &mut self.mc)?;
         }
 
-        let fb_refresh = if (now - self.last_refresh_at) > 14.0 {
+        let in_vblank = h_line >= 144;
+        let fb_refresh = if !in_vblank && (now - self.last_refresh_at) > 14.0 {
             self.last_refresh_at = now;
             true
         } else {
