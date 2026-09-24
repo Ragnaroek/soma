@@ -491,6 +491,13 @@ fn exec_ld_to_deref_label_from_a(
     Ok(())
 }
 
+fn exec_ld_to_deref_bc_from_a(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
+    let addr = sm83.reg.bc();
+    mc.write(addr, sm83.reg.a)?;
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_ld_to_deref_de_from_a(sm83: &mut SM83, mc: &mut MemoryController) -> Result<(), ExecErr> {
     let addr = sm83.reg.de();
     mc.write(addr, sm83.reg.a)?;
@@ -1121,7 +1128,7 @@ fn exec_prefix_bit_0_a(sm83: &mut SM83, _mc: &mut MemoryController) -> Result<()
 pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x00*/ exec_nop,
     /*0x01*/ exec_ld_to_bc_from_immediate,
-    /*0x02*/ exec_invalid,
+    /*0x02*/ exec_ld_to_deref_bc_from_a,
     /*0x03*/ exec_invalid,
     /*0x04*/ exec_invalid,
     /*0x05*/ exec_dec_b,
