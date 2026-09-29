@@ -675,6 +675,17 @@ fn exec_inc_a(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> 
     Ok(())
 }
 
+fn exec_inc_b(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
+    let (b_inc, _) = sm83.reg.b.overflowing_add(1);
+    let half_carry = half_carry_inc(sm83.reg.b);
+    sm83.reg.b = b_inc;
+    sm83.reg.set_flag(Z, (b_inc == 0) as u8);
+    sm83.reg.set_flag(N, 0);
+    sm83.reg.set_flag(H, half_carry);
+    sm83.inc_pc(1);
+    Ok(())
+}
+
 fn exec_inc_c(sm83: &mut SM83, _: &mut MemoryController) -> Result<(), ExecErr> {
     let (c_inc, _) = sm83.reg.c.overflowing_add(1);
     let half_carry = half_carry_inc(sm83.reg.c);
@@ -1130,7 +1141,7 @@ pub static EXEC_TABLE: [Sm83Exec; psy::arch::sm83::SM83_NUM_INSTRUCTIONS] = [
     /*0x01*/ exec_ld_to_bc_from_immediate,
     /*0x02*/ exec_ld_to_deref_bc_from_a,
     /*0x03*/ exec_invalid,
-    /*0x04*/ exec_invalid,
+    /*0x04*/ exec_inc_b,
     /*0x05*/ exec_dec_b,
     /*0x06*/ exec_ld_to_b_from_immediate,
     /*0x07*/ exec_invalid,

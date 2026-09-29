@@ -904,7 +904,7 @@ fn test_add() -> Result<(), ExecErr> {
 
 #[test]
 fn test_inc() -> Result<(), ExecErr> {
-    let cases: [(&str, IO, Register, &[u8], Register, &[(u16, u8)]); 21] = [
+    let cases: [(&str, IO, Register, &[u8], Register, &[(u16, u8)]); 24] = [
         // (inc %a)
         (
             "(inc %a), zero result",
@@ -928,6 +928,31 @@ fn test_inc() -> Result<(), ExecErr> {
             RegBuilder::new().a(0x0F).f_z(1).f_n(1).f_h(0).reg(),
             &[psy::arch::sm83::INSTR_INC_A.op_code],
             RegBuilder::new().a(0x10).f_z(0).f_n(0).f_h(1).reg(),
+            &[],
+        ),
+        // (inc %b)
+        (
+            "(inc %b), zero result",
+            IO::init(),
+            RegBuilder::new().b(0xFF).f_z(0).f_n(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_INC_B.op_code],
+            RegBuilder::new().b(0x00).f_z(1).f_n(0).f_h(1).reg(),
+            &[],
+        ),
+        (
+            "(inc %b), non-zero result",
+            IO::init(),
+            RegBuilder::new().b(0x00).f_z(1).f_n(1).f_h(1).reg(),
+            &[psy::arch::sm83::INSTR_INC_B.op_code],
+            RegBuilder::new().b(0x01).f_z(0).f_n(0).f_h(0).reg(),
+            &[],
+        ),
+        (
+            "(inc %b), half-carry",
+            IO::init(),
+            RegBuilder::new().b(0x0F).f_z(1).f_n(1).f_h(0).reg(),
+            &[psy::arch::sm83::INSTR_INC_B.op_code],
+            RegBuilder::new().b(0x10).f_z(0).f_n(0).f_h(1).reg(),
             &[],
         ),
         // (inc %c)
